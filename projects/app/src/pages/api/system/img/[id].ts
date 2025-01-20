@@ -9,9 +9,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await connectToDatabase();
     const { id } = req.query as { id: string };
 
-    res.setHeader('Content-Type', 'image/jpeg');
+    const { binary, mime } = await readMongoImg({ id });
 
-    res.send(await readMongoImg({ id }));
+    res.setHeader('Content-Type', mime);
+    res.send(binary);
   } catch (error) {
     jsonRes(res, {
       code: 500,

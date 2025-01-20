@@ -1,32 +1,47 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { jsonRes } from '@fastgpt/service/common/response';
-import { connectToDatabase } from '@/service/mongo';
 import { MongoOutLink } from '@fastgpt/service/support/outLink/schema';
-import { authApp } from '@fastgpt/service/support/permission/auth/app';
+import { authApp } from '@fastgpt/service/support/permission/app/auth';
+import { ManagePermissionVal } from '@fastgpt/global/support/permission/constant';
+import type { ApiRequestProps } from '@fastgpt/service/type/next';
+import { NextAPI } from '@/service/middleware/entry';
+import { OutLinkSchema } from '@fastgpt/global/support/outLink/type';
+import { PublishChannelEnum } from '@fastgpt/global/support/outLink/constant';
 
-/* get shareChat list by appId */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  try {
-    await connectToDatabase();
+export const ApiMetadata = {
+  name: '获取应用内所有 Outlink',
+  author: 'Finley',
+  version: '0.1.0'
+};
 
-    const { appId } = req.query as {
-      appId: string;
-    };
+export type OutLinkListQuery = {
+  appId: string; // 应用 ID
+  type: `${PublishChannelEnum}`;
+};
 
-    const { teamId, tmbId, isOwner } = await authApp({ req, authToken: true, appId, per: 'w' });
+export type OutLinkListBody = {};
 
-    const data = await MongoOutLink.find({
-      appId,
-      ...(isOwner ? { teamId } : { tmbId })
-    }).sort({
-      _id: -1
-    });
+// 应用内全部 Outlink 列表
+export type OutLinkListResponse = OutLinkSchema[];
 
-    jsonRes(res, { data });
-  } catch (err) {
-    jsonRes(res, {
-      code: 500,
-      error: err
-    });
-  }
+// 查询应用的所有 OutLink
+export async function handler(
+  req: ApiRequestProps<OutLinkListBody, OutLinkListQuery>
+): Promise<OutLinkListResponse> {
+  const { appId, type } = req.query;
+  await authApp({
+    req,
+    authToken: true,
+    appId,
+    per: ManagePermissionVal
+  });
+
+  const data = await MongoOutLink.find({
+    appId,
+    type: type
+  }).sort({
+    _id: -1
+  });
+
+  return data;
 }
+
+export default NextAPI(handler);

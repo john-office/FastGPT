@@ -1,42 +1,67 @@
-import type { ChatMessageItemType } from '@fastgpt/global/core/ai/type.d';
-import { getAIApi } from '../config';
-
-export const Prompt_QuestionGuide = `我不太清楚问你什么问题，请帮我生成 3 个问题，引导我继续提问。问题的长度应小于20个字符，按 JSON 格式返回: ["问题1", "问题2", "问题3"]`;
+import type { ChatCompletionMessageParam } from '@fastgpt/global/core/ai/type.d';
+import { createChatCompletion } from '../config';
+import { countGptMessagesTokens, countPromptTokens } from '../../../common/string/tiktoken/index';
+import { loadRequestMessages } from '../../chat/utils';
+import { llmCompletionsBodyFormat } from '../utils';
+import {
+  PROMPT_QUESTION_GUIDE,
+  PROMPT_QUESTION_GUIDE_FOOTER
+} from '@fastgpt/global/core/ai/prompt/agent';
+import { addLog } from '../../../common/system/log';
+import json5 from 'json5';
 
 export async function createQuestionGuide({
   messages,
-  model
+  model,
+  customPrompt
 }: {
-  messages: ChatMessageItemType[];
+  messages: ChatCompletionMessageParam[];
   model: string;
-}) {
-  const ai = getAIApi(undefined, 480000);
-  const data = await ai.chat.completions.create({
-    model: model,
-    temperature: 0,
-    max_tokens: 200,
-    messages: [
-      ...messages,
+  customPrompt?: string;
+}): Promise<{
+  result: string[];
+  inputTokens: number;
+  outputTokens: number;
+}> {
+  const concatMessages: ChatCompletionMessageParam[] = [
+    ...messages,
+    {
+      role: 'user',
+      content: `${customPrompt || PROMPT_QUESTION_GUIDE}\n${PROMPT_QUESTION_GUIDE_FOOTER}`
+    }
+  ];
+  const requestMessages = await loadRequestMessages({
+    messages: concatMessages,
+    useVision: false
+  });
+
+  const { response: data } = await createChatCompletion({
+    body: llmCompletionsBodyFormat(
       {
-        role: 'user',
-        content: Prompt_QuestionGuide
-      }
-    ],
-    stream: false
+        model,
+        temperature: 0.1,
+        max_tokens: 200,
+        messages: requestMessages,
+        stream: false
+      },
+      model
+    )
   });
 
   const answer = data.choices?.[0]?.message?.content || '';
-  const inputTokens = data.usage?.prompt_tokens || 0;
-  const outputTokens = data.usage?.completion_tokens || 0;
 
   const start = answer.indexOf('[');
   const end = answer.lastIndexOf(']');
 
+  const inputTokens = await countGptMessagesTokens(requestMessages);
+  const outputTokens = await countPromptTokens(answer);
+
   if (start === -1 || end === -1) {
+    addLog.warn('Create question guide error', { answer });
     return {
       result: [],
-      inputTokens,
-      outputTokens
+      inputTokens: 0,
+      outputTokens: 0
     };
   }
 
@@ -47,15 +72,17 @@ export async function createQuestionGuide({
 
   try {
     return {
-      result: JSON.parse(jsonStr),
+      result: json5.parse(jsonStr),
       inputTokens,
       outputTokens
     };
   } catch (error) {
+    console.log(error);
+
     return {
       result: [],
-      inputTokens,
-      outputTokens
+      inputTokens: 0,
+      outputTokens: 0
     };
   }
 }

@@ -1,5 +1,6 @@
 @import './reactflow.scss';
 @import './default.scss';
+@import './chakraui.scss';
 
 body,
 h1,
@@ -46,22 +47,18 @@ svg {
 
 div {
   &::-webkit-scrollbar-thumb {
-    background: transparent !important;
+    background: rgba(189, 193, 197, 0.7) !important;
     transition: background 1s;
   }
-  &:hover {
-    &::-webkit-scrollbar-thumb {
-      background: rgba(189, 193, 197, 0.7) !important;
-    }
-    &::-webkit-scrollbar-thumb:hover {
-      background: rgba(189, 193, 197, 1) !important;
-    }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(189, 193, 197, 1) !important;
   }
 }
 
 input::placeholder,
 textarea::placeholder {
-  font-size: 0.85em;
+  font-size: var(--chakra-fontSizes-mini);
 }
 
 * {

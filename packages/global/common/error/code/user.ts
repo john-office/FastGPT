@@ -1,17 +1,25 @@
 import { ErrType } from '../errorCode';
-
+import { i18nT } from '../../../../web/i18n/utils';
 /* team: 503000 */
 export enum UserErrEnum {
-  unAuthUser = 'unAuthUser',
   unAuthRole = 'unAuthRole',
-  binVisitor = 'binVisitor',
-  balanceNotEnough = 'balanceNotEnough'
+  account_psw_error = 'account_psw_error',
+  balanceNotEnough = 'balanceNotEnough',
+  unAuthSso = 'unAuthSso'
 }
 const errList = [
-  { statusText: UserErrEnum.unAuthUser, message: '找不到该用户' },
-  { statusText: UserErrEnum.binVisitor, message: '您的身份校验未通过' },
-  { statusText: UserErrEnum.binVisitor, message: '您当前身份为游客，无权操作' },
-  { statusText: UserErrEnum.balanceNotEnough, message: '账号余额不足~' }
+  {
+    statusText: UserErrEnum.account_psw_error,
+    message: i18nT('common:code_error.account_error')
+  },
+  {
+    statusText: UserErrEnum.balanceNotEnough,
+    message: i18nT('common:code_error.user_error.balance_not_enough')
+  },
+  {
+    statusText: UserErrEnum.unAuthSso,
+    message: i18nT('user:sso_auth_failed')
+  }
 ];
 export default errList.reduce((acc, cur, index) => {
   return {

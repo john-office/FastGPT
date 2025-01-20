@@ -1,59 +1,51 @@
 /* push data to training queue */
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { jsonRes } from '@fastgpt/service/common/response';
-import { connectToDatabase } from '@/service/mongo';
-import { withNextCors } from '@fastgpt/service/common/middle/cors';
-import { TrainingModeEnum, TrainingTypeMap } from '@fastgpt/global/core/dataset/constant';
-import type { PushDataResponse } from '@/global/core/api/datasetRes.d';
-import type { PushDatasetDataProps } from '@/global/core/dataset/api.d';
-import { authDatasetCollection } from '@fastgpt/service/support/permission/auth/dataset';
-import { checkDatasetLimit } from '@fastgpt/service/support/permission/limit/dataset';
+import type { PushDatasetDataProps } from '@fastgpt/global/core/dataset/api.d';
+import { authDatasetCollection } from '@fastgpt/service/support/permission/dataset/auth';
+import { checkDatasetLimit } from '@fastgpt/service/support/permission/teamLimit';
 import { predictDataLimitLength } from '@fastgpt/global/core/dataset/utils';
-import { pushDataToDatasetCollection } from '@/service/core/dataset/data/controller';
+import { pushDataListToTrainingQueue } from '@fastgpt/service/core/dataset/training/controller';
+import { NextAPI } from '@/service/middleware/entry';
+import { WritePermissionVal } from '@fastgpt/global/support/permission/constant';
 
-export default withNextCors(async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
-  try {
-    await connectToDatabase();
-    const { collectionId, data } = req.body as PushDatasetDataProps;
+async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
+  const body = req.body as PushDatasetDataProps;
+  const { collectionId, data } = body;
 
-    if (!collectionId || !Array.isArray(data)) {
-      throw new Error('collectionId or data is empty');
-    }
-
-    if (data.length > 200) {
-      throw new Error('Data is too long, max 200');
-    }
-
-    // 凭证校验
-    const { teamId, tmbId, collection } = await authDatasetCollection({
-      req,
-      authToken: true,
-      authApiKey: true,
-      collectionId,
-      per: 'w'
-    });
-
-    // auth dataset limit
-    await checkDatasetLimit({
-      teamId,
-      freeSize: global.feConfigs?.subscription?.datasetStoreFreeSize,
-      insertLen: predictDataLimitLength(collection.trainingType, data)
-    });
-
-    jsonRes<PushDataResponse>(res, {
-      data: await pushDataToDatasetCollection({
-        ...req.body,
-        teamId,
-        tmbId
-      })
-    });
-  } catch (err) {
-    jsonRes(res, {
-      code: 500,
-      error: err
-    });
+  if (!collectionId || !Array.isArray(data)) {
+    throw new Error('collectionId or data is empty');
   }
-});
+
+  if (data.length > 200) {
+    throw new Error('Data is too long, max 200');
+  }
+
+  // 凭证校验
+  const { teamId, tmbId, collection } = await authDatasetCollection({
+    req,
+    authToken: true,
+    authApiKey: true,
+    collectionId,
+    per: WritePermissionVal
+  });
+
+  // auth dataset limit
+  await checkDatasetLimit({
+    teamId,
+    insertLen: predictDataLimitLength(collection.trainingType, data)
+  });
+
+  return pushDataListToTrainingQueue({
+    ...body,
+    teamId,
+    tmbId,
+    datasetId: collection.datasetId,
+    agentModel: collection.dataset.agentModel,
+    vectorModel: collection.dataset.vectorModel
+  });
+}
+
+export default NextAPI(handler);
 
 export const config = {
   api: {

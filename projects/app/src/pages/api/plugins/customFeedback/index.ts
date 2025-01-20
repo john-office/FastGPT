@@ -1,10 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+//@ts-ignore
 import type { HttpBodyType } from '@fastgpt/global/core/module/api.d';
 import { getErrText } from '@fastgpt/global/common/error/utils';
 import { addCustomFeedbacks } from '@fastgpt/service/core/chat/controller';
 import { authRequestFromLocal } from '@fastgpt/service/support/permission/auth/common';
 
 type Props = HttpBodyType<{
+  appId: string;
+  chatId?: string;
+  responseChatItemId?: string;
   defaultFeedback: string;
   customFeedback: string;
 }>;
@@ -12,9 +16,11 @@ type Props = HttpBodyType<{
 export default async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   try {
     const {
+      appId,
       chatId,
-      responseChatItemId: chatItemId,
-      data: { defaultFeedback, customFeedback }
+      responseChatItemId: dataId,
+      defaultFeedback,
+      customFeedback
     } = req.body as Props;
 
     await authRequestFromLocal({ req });
@@ -30,13 +36,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     // wait the chat finish
     setTimeout(() => {
       addCustomFeedbacks({
+        appId,
         chatId,
-        chatItemId,
+        dataId,
         feedbacks: [feedback]
       });
     }, 60000);
 
-    if (!chatId || !chatItemId) {
+    if (!chatId || !dataId) {
       return res.json({
         response: `\\n\\n**自动反馈调试**: ${feedback}\\n\\n`
       });

@@ -1,21 +1,26 @@
-import React, { useEffect, useMemo } from 'react';
-import { Box, useColorMode, Flex } from '@chakra-ui/react';
+import React, { useMemo } from 'react';
+import { Box, Flex } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
-import { useLoading } from '@/web/common/hooks/useLoading';
+import { useLoading } from '@fastgpt/web/hooks/useLoading';
 import { useSystemStore } from '@/web/common/system/useSystemStore';
-import { throttle } from 'lodash';
 import { useQuery } from '@tanstack/react-query';
 import { useUserStore } from '@/web/support/user/useUserStore';
 import { getUnreadCount } from '@/web/support/user/inform/api';
-import { feConfigs } from '@/web/common/system/staticData';
 import dynamic from 'next/dynamic';
+import { useI18nLng } from '@fastgpt/web/hooks/useI18n';
 
 import Auth from './auth';
-import Navbar from './navbar';
-import NavbarPhone from './navbarPhone';
-const UpdateInviteModal = dynamic(
-  () => import('@/components/support/user/team/UpdateInviteModal'),
-  { ssr: false }
+import { useSystem } from '@fastgpt/web/hooks/useSystem';
+import { useMount } from 'ahooks';
+
+const Navbar = dynamic(() => import('./navbar'));
+const NavbarPhone = dynamic(() => import('./navbarPhone'));
+const UpdateInviteModal = dynamic(() => import('@/components/support/user/team/UpdateInviteModal'));
+const NotSufficientModal = dynamic(() => import('@/components/support/wallet/NotSufficientModal'));
+const SystemMsgModal = dynamic(() => import('@/components/support/user/inform/SystemMsgModal'));
+const ImportantInform = dynamic(() => import('@/components/support/user/inform/ImportantInform'));
+const UpdateNotification = dynamic(
+  () => import('@/components/support/user/inform/UpdateNotificationModal')
 );
 
 const pcUnShowLayoutRoute: Record<string, boolean> = {
@@ -24,9 +29,11 @@ const pcUnShowLayoutRoute: Record<string, boolean> = {
   '/login/provider': true,
   '/login/fastlogin': true,
   '/chat/share': true,
+  '/chat/team': true,
   '/app/edit': true,
   '/chat': true,
-  '/tools/price': true
+  '/tools/price': true,
+  '/price': true
 };
 const phoneUnShowLayoutRoute: Record<string, boolean> = {
   '/': true,
@@ -34,44 +41,43 @@ const phoneUnShowLayoutRoute: Record<string, boolean> = {
   '/login/provider': true,
   '/login/fastlogin': true,
   '/chat/share': true,
-  '/tools/price': true
+  '/chat/team': true,
+  '/tools/price': true,
+  '/price': true
 };
+
+export const navbarWidth = '64px';
 
 const Layout = ({ children }: { children: JSX.Element }) => {
   const router = useRouter();
-  const { colorMode, setColorMode } = useColorMode();
   const { Loading } = useLoading();
-  const { loading, setScreenWidth, isPc } = useSystemStore();
-  const { userInfo } = useUserStore();
+  const { loading, feConfigs, notSufficientModalType } = useSystemStore();
+  const { isPc } = useSystem();
+  const { userInfo, isUpdateNotification, setIsUpdateNotification } = useUserStore();
+  const { setUserDefaultLng } = useI18nLng();
 
   const isChatPage = useMemo(
     () => router.pathname === '/chat' && Object.values(router.query).join('').length !== 0,
     [router.pathname, router.query]
   );
 
-  useEffect(() => {
-    if (colorMode === 'dark' && router.pathname !== '/chat') {
-      setColorMode('light');
-    }
-  }, [colorMode, router.pathname, setColorMode]);
-
-  useEffect(() => {
-    const resize = throttle(() => {
-      setScreenWidth(document.documentElement.clientWidth);
-    }, 300);
-
-    window.addEventListener('resize', resize);
-
-    resize();
-
-    return () => {
-      window.removeEventListener('resize', resize);
-    };
-  }, [setScreenWidth]);
-
-  const { data: unread = 0 } = useQuery(['getUnreadCount'], getUnreadCount, {
+  // System hook
+  const { data, refetch: refetchUnRead } = useQuery(['getUnreadCount'], getUnreadCount, {
     enabled: !!userInfo && !!feConfigs.isPlus,
-    refetchInterval: 10000
+    refetchInterval: 30000
+  });
+  const unread = data?.unReadCount || 0;
+  const importantInforms = data?.importantInforms || [];
+
+  const isHideNavbar = !!pcUnShowLayoutRoute[router.pathname];
+
+  const showUpdateNotification =
+    isUpdateNotification &&
+    !userInfo?.team.notificationAccount &&
+    !!userInfo?.team.permission.isOwner;
+
+  useMount(() => {
+    setUserDefaultLng();
   });
 
   return (
@@ -79,41 +85,54 @@ const Layout = ({ children }: { children: JSX.Element }) => {
       <Box h={'100%'} bg={'myGray.100'}>
         {isPc === true && (
           <>
-            {pcUnShowLayoutRoute[router.pathname] ? (
+            {isHideNavbar ? (
               <Auth>{children}</Auth>
             ) : (
-              <>
-                <Box h={'100%'} position={'fixed'} left={0} top={0} w={'64px'}>
+              <Auth>
+                <Box h={'100%'} position={'fixed'} left={0} top={0} w={navbarWidth}>
                   <Navbar unread={unread} />
                 </Box>
-                <Box h={'100%'} ml={'70px'} overflow={'overlay'}>
-                  <Auth>{children}</Auth>
+                <Box h={'100%'} ml={navbarWidth} overflow={'overlay'}>
+                  {children}
                 </Box>
-              </>
+              </Auth>
             )}
           </>
         )}
         {isPc === false && (
           <>
-            <Box h={'100%'} display={['block', 'none']}>
-              {phoneUnShowLayoutRoute[router.pathname] || isChatPage ? (
-                <Auth>{children}</Auth>
-              ) : (
+            {phoneUnShowLayoutRoute[router.pathname] || isChatPage ? (
+              <Auth>{children}</Auth>
+            ) : (
+              <Auth>
                 <Flex h={'100%'} flexDirection={'column'}>
                   <Box flex={'1 0 0'} h={0}>
-                    <Auth>{children}</Auth>
+                    {children}
                   </Box>
                   <Box h={'50px'} borderTop={'1px solid rgba(0,0,0,0.1)'}>
                     <NavbarPhone unread={unread} />
                   </Box>
                 </Flex>
-              )}
-            </Box>
+              </Auth>
+            )}
           </>
         )}
       </Box>
+      {feConfigs?.isPlus && (
+        <>
+          {!!userInfo && <UpdateInviteModal />}
+          {notSufficientModalType && <NotSufficientModal type={notSufficientModalType} />}
+          {!!userInfo && <SystemMsgModal />}
+          {showUpdateNotification && (
+            <UpdateNotification onClose={() => setIsUpdateNotification(false)} />
+          )}
+          {!!userInfo && importantInforms.length > 0 && (
+            <ImportantInform informs={importantInforms} refetch={refetchUnRead} />
+          )}
+        </>
+      )}
+
       <Loading loading={loading} zIndex={999999} />
-      {!!userInfo && <UpdateInviteModal />}
     </>
   );
 };

@@ -1,54 +1,42 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { jsonRes } from '@fastgpt/service/common/response';
-import { connectToDatabase } from '@/service/mongo';
+import type { NextApiResponse } from 'next';
 import { MongoChatItem } from '@fastgpt/service/core/chat/chatItemSchema';
 import { UpdateChatFeedbackProps } from '@fastgpt/global/core/chat/api';
-import { autChatCrud } from '@/service/support/permission/auth/chat';
+import { authChatCrud } from '@/service/support/permission/auth/chat';
+import { NextAPI } from '@/service/middleware/entry';
+import { ApiRequestProps } from '@fastgpt/service/type/next';
 
 /* 初始化我的聊天框，需要身份验证 */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { appId, chatId, chatItemId, shareId, outLinkUid, userBadFeedback, userGoodFeedback } =
-    req.body as UpdateChatFeedbackProps;
+async function handler(req: ApiRequestProps<UpdateChatFeedbackProps>, res: NextApiResponse) {
+  const { appId, chatId, dataId, userBadFeedback, userGoodFeedback } = req.body;
 
-  try {
-    await connectToDatabase();
+  if (!chatId || !dataId) {
+    return Promise.reject('chatId or dataId is empty');
+  }
 
-    await autChatCrud({
-      req,
-      authToken: true,
+  await authChatCrud({
+    req,
+    authToken: true,
+    authApiKey: true,
+    ...req.body
+  });
+
+  await MongoChatItem.findOneAndUpdate(
+    {
       appId,
       chatId,
-      shareId,
-      outLinkUid,
-      per: 'r'
-    });
-
-    if (!chatItemId) {
-      throw new Error('chatItemId is required');
-    }
-
-    await MongoChatItem.findOneAndUpdate(
-      {
-        chatId,
-        dataId: chatItemId
+      dataId
+    },
+    {
+      $unset: {
+        ...(userBadFeedback === undefined && { userBadFeedback: '' }),
+        ...(userGoodFeedback === undefined && { userGoodFeedback: '' })
       },
-      {
-        $unset: {
-          ...(userBadFeedback === undefined && { userBadFeedback: '' }),
-          ...(userGoodFeedback === undefined && { userGoodFeedback: '' })
-        },
-        $set: {
-          ...(userBadFeedback !== undefined && { userBadFeedback }),
-          ...(userGoodFeedback !== undefined && { userGoodFeedback })
-        }
+      $set: {
+        ...(userBadFeedback !== undefined && { userBadFeedback }),
+        ...(userGoodFeedback !== undefined && { userGoodFeedback })
       }
-    );
-
-    jsonRes(res);
-  } catch (err) {
-    jsonRes(res, {
-      code: 500,
-      error: err
-    });
-  }
+    }
+  );
 }
+
+export default NextAPI(handler);

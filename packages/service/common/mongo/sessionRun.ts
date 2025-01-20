@@ -1,21 +1,28 @@
-import mongoose, { connectionMongo } from './index';
+import { addLog } from '../system/log';
+import { connectionMongo, ClientSession } from './index';
 
-export async function mongoSessionTask(
-  fn: (session: mongoose.mongo.ClientSession) => Promise<any>
-) {
+const timeout = 60000;
+
+export const mongoSessionRun = async <T = unknown>(fn: (session: ClientSession) => Promise<T>) => {
   const session = await connectionMongo.startSession();
 
   try {
-    session.startTransaction();
-
-    await fn(session);
+    session.startTransaction({
+      maxCommitTimeMS: timeout
+    });
+    const result = await fn(session);
 
     await session.commitTransaction();
-    await session.endSession();
+
+    return result as T;
   } catch (error) {
-    await session.abortTransaction();
-    await session.endSession();
-    console.error(error);
+    if (!session.transaction.isCommitted) {
+      await session.abortTransaction();
+    } else {
+      addLog.warn('Un catch mongo session error', { error });
+    }
     return Promise.reject(error);
+  } finally {
+    await session.endSession();
   }
-}
+};

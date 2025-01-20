@@ -1,52 +1,50 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useTranslation } from 'next-i18next';
-import MyModal from '@/components/MyModal';
-import {
-  Button,
-  ModalFooter,
-  useDisclosure,
-  ModalBody,
-  Flex,
-  Box,
-  useTheme
-} from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
+import MyModal from '@fastgpt/web/components/common/MyModal';
+import { Button, ModalFooter, ModalBody, Flex, Box, useTheme } from '@chakra-ui/react';
 import { getTeamList, updateInviteResult } from '@/web/support/user/team/api';
 import { TeamMemberStatusEnum } from '@fastgpt/global/support/user/team/constant';
-import Avatar from '@/components/Avatar';
-import { useRequest } from '@/web/common/hooks/useRequest';
-import { useToast } from '@/web/common/hooks/useToast';
-import { useConfirm } from '@/web/common/hooks/useConfirm';
-import { feConfigs } from '@/web/common/system/staticData';
+import Avatar from '@fastgpt/web/components/common/Avatar';
+import { useToast } from '@fastgpt/web/hooks/useToast';
+import { useConfirm } from '@fastgpt/web/hooks/useConfirm';
+import { useSystemStore } from '@/web/common/system/useSystemStore';
+import { useRequest2 } from '@fastgpt/web/hooks/useRequest';
+import { useUserStore } from '@/web/support/user/useUserStore';
 
 const UpdateInviteModal = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const { toast } = useToast();
+  const { feConfigs } = useSystemStore();
+  const { initUserInfo } = useUserStore();
+
   const { ConfirmModal, openConfirm } = useConfirm({});
 
-  const { data: inviteList = [], refetch } = useQuery(['getInviteList'], () =>
-    feConfigs.isPlus ? getTeamList(TeamMemberStatusEnum.waiting) : []
+  const { data: inviteList = [], run: fetchInviteList } = useRequest2(
+    async () => (feConfigs.isPlus ? getTeamList(TeamMemberStatusEnum.waiting) : []),
+    {
+      manual: false
+    }
   );
 
-  const { mutate: onAccept, isLoading: isLoadingAccept } = useRequest({
-    mutationFn: updateInviteResult,
+  const { runAsync: onAccept, loading: isLoadingAccept } = useRequest2(updateInviteResult, {
     onSuccess() {
       toast({
         status: 'success',
-        title: t('user.team.invite.Accepted')
+        title: t('common:user.team.invite.Accepted')
       });
-      refetch();
+      fetchInviteList();
+      initUserInfo();
     }
   });
-  const { mutate: onReject, isLoading: isLoadingReject } = useRequest({
-    mutationFn: updateInviteResult,
+  const { runAsync: onReject, loading: isLoadingReject } = useRequest2(updateInviteResult, {
     onSuccess() {
       toast({
         status: 'success',
-        title: t('user.team.invite.Reject')
+        title: t('common:user.team.invite.Reject')
       });
-      refetch();
+      fetchInviteList();
+      initUserInfo();
     }
   });
 
@@ -56,9 +54,9 @@ const UpdateInviteModal = () => {
       iconSrc="/imgs/modal/team.svg"
       title={
         <Box>
-          <Box>{t('user.team.Processing invitations')}</Box>
+          <Box>{t('common:user.team.Processing invitations')}</Box>
           <Box fontWeight={'normal'} fontSize={'sm'} color={'myGray.500'}>
-            {t('user.team.Processing invitations Tips', { amount: inviteList?.length })}
+            {t('common:user.team.Processing invitations Tips', { amount: inviteList?.length })}
           </Box>
         </Box>
       }
@@ -93,11 +91,11 @@ const UpdateInviteModal = () => {
                       status: TeamMemberStatusEnum.active
                     }),
                   undefined,
-                  t('user.team.invite.Accept Confirm')
+                  t('common:user.team.invite.Accept Confirm')
                 )();
               }}
             >
-              {t('user.team.invite.accept')}
+              {t('common:user.team.invite.accept')}
             </Button>
             <Button
               size="sm"
@@ -113,17 +111,17 @@ const UpdateInviteModal = () => {
                       status: TeamMemberStatusEnum.reject
                     }),
                   undefined,
-                  t('user.team.invite.Reject Confirm')
+                  t('common:user.team.invite.Reject Confirm')
                 )();
               }}
             >
-              {t('user.team.invite.reject')}
+              {t('common:user.team.invite.reject')}
             </Button>
           </Flex>
         ))}
       </ModalBody>
       <ModalFooter justifyContent={'center'}>
-        <Box>{t('user.team.invite.Deal Width Footer Tip')}</Box>
+        <Box>{t('common:user.team.invite.Deal Width Footer Tip')}</Box>
       </ModalFooter>
 
       <ConfirmModal />

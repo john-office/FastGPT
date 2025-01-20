@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { Flex, Box } from '@chakra-ui/react';
-import { useChatStore } from '@/web/core/chat/storeChat';
+import { useChatStore } from '@/web/core/chat/context/useChatStore';
 import { useTranslation } from 'next-i18next';
 import Badge from '../Badge';
 import MyIcon from '@fastgpt/web/components/common/Icon';
@@ -9,39 +9,61 @@ import MyIcon from '@fastgpt/web/components/common/Icon';
 const NavbarPhone = ({ unread }: { unread: number }) => {
   const router = useRouter();
   const { t } = useTranslation();
-  const { lastChatAppId, lastChatId } = useChatStore();
+  const { lastChatAppId } = useChatStore();
   const navbarList = useMemo(
     () => [
       {
-        label: t('navbar.Chat'),
+        label: t('common:navbar.Chat'),
         icon: 'core/chat/chatLight',
-        link: `/chat?appId=${lastChatAppId}&chatId=${lastChatId}`,
+        activeIcon: 'core/chat/chatFill',
+        link: `/chat?appId=${lastChatAppId}`,
         activeLink: ['/chat'],
         unread: 0
       },
       {
-        label: t('navbar.Apps'),
+        label: t('common:navbar.Studio'),
         icon: 'core/app/aiLight',
+        activeIcon: 'core/app/aiFill',
         link: `/app/list`,
         activeLink: ['/app/list', '/app/detail'],
         unread: 0
       },
       {
-        label: t('navbar.Tools'),
-        icon: 'phoneTabbar/more',
-        link: '/tools',
-        activeLink: ['/tools'],
+        label: t('common:navbar.Datasets'),
+        icon: 'core/dataset/datasetLight',
+        activeIcon: 'core/dataset/datasetFill',
+        link: `/dataset/list`,
+        activeLink: ['/dataset/list', '/dataset/detail'],
         unread: 0
       },
       {
-        label: t('navbar.Account'),
-        icon: 'phoneTabbar/me',
-        link: '/account',
-        activeLink: ['/account'],
+        label: t('common:navbar.Toolkit'),
+        icon: 'phoneTabbar/tool',
+        activeIcon: 'phoneTabbar/toolFill',
+        link: `/toolkit`,
+        activeLink: ['/toolkit'],
+        unread: 0
+      },
+      {
+        label: t('common:navbar.Account'),
+        icon: 'support/user/userLight',
+        activeIcon: 'support/user/userFill',
+        link: '/account/info',
+        activeLink: [
+          '/account/bill',
+          '/account/info',
+          '/account/team',
+          '/account/usage',
+          '/account/apikey',
+          '/account/setting',
+          '/account/inform',
+          '/account/promotion',
+          '/account/model'
+        ],
         unread
       }
     ],
-    [t, lastChatAppId, lastChatId, unread]
+    [t, lastChatAppId, unread]
   );
 
   return (
@@ -52,7 +74,7 @@ const NavbarPhone = ({ unread }: { unread: number }) => {
         justifyContent={'space-between'}
         backgroundColor={'white'}
         position={'relative'}
-        px={10}
+        px={4}
       >
         {navbarList.map((item) => (
           <Flex
@@ -68,35 +90,24 @@ const NavbarPhone = ({ unread }: { unread: number }) => {
             transform={'scale(0.9)'}
             {...(item.activeLink.includes(router.pathname)
               ? {
-                  color: '#7089f1'
+                  color: 'primary.600'
                 }
               : {
                   color: 'myGray.500'
                 })}
-            _after={
-              item.activeLink.includes(router.pathname)
-                ? {
-                    content: '""',
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%,-50%)',
-                    borderRadius: '50%',
-                    w: '18px',
-                    h: '18px',
-                    bg: ' #6782f1',
-                    filter: 'blur(10px)',
-                    boxShadow: '0px 2px 4px 0px rgba(0, 0, 0, 0.25)'
-                  }
-                : {}
-            }
             onClick={() => {
               if (item.link === router.asPath) return;
               router.push(item.link);
             }}
           >
             <Badge isDot count={item.unread}>
-              <MyIcon name={item.icon as any} width={'20px'} height={'20px'} />
+              <MyIcon
+                name={
+                  (item.activeLink.includes(router.pathname) ? item.activeIcon : item.icon) as any
+                }
+                width={'20px'}
+                height={'20px'}
+              />
               <Box fontSize={'12px'}>{item.label}</Box>
             </Badge>
           </Flex>

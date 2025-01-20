@@ -1,17 +1,20 @@
-import { FlowNodeTypeEnum } from '@fastgpt/global/core/module/node/constant';
-import { ModuleIOValueTypeEnum } from '@fastgpt/global/core/module/constants';
+import { FlowNodeTypeEnum } from '@fastgpt/global/core/workflow/node/constant';
+import { WorkflowIOValueTypeEnum } from '@fastgpt/global/core/workflow/constants';
 import { XYPosition } from 'reactflow';
 import { AppModuleItemTypeEnum, ModulesInputItemTypeEnum } from '../constants/app';
 import { AppTypeEnum } from '@fastgpt/global/core/app/constants';
-import type {
+import type { FlowNodeOutputTargetItemType } from '@fastgpt/global/core/workflow/node/type.d';
+import {
   FlowNodeInputItemType,
-  FlowNodeOutputItemType,
-  FlowNodeOutputTargetItemType
-} from '@fastgpt/global/core/module/node/type.d';
-import type { FlowModuleTemplateType, ModuleItemType } from '@fastgpt/global/core/module/type.d';
+  FlowNodeOutputItemType
+} from '@fastgpt/global/core/workflow/type/io.d';
+import type { StoreNodeItemType } from '@fastgpt/global/core/workflow/type/node.d';
+import type { FlowNodeTemplateType } from '@fastgpt/global/core/workflow/type/node';
 import type { ChatSchema } from '@fastgpt/global/core/chat/type';
 import type { AppSchema } from '@fastgpt/global/core/app/type';
 import { ChatModelType } from '@/constants/model';
+import { TeamMemberStatusEnum } from '@fastgpt/global/support/user/team/constant';
+import { SourceMember } from '@fastgpt/global/support/user/type';
 
 export interface ShareAppItem {
   _id: string;
@@ -27,13 +30,14 @@ export interface ShareAppItem {
 export type AppItemType = {
   id: string;
   name: string;
-  modules: ModuleItemType[];
+  modules: StoreNodeItemType[];
+  edges: StoreEdgeItemType[];
 };
 
 export type AppLogsListItemType = {
   _id: string;
   id: string;
-  source: ChatSchema['source'];
+  source: string;
   time: Date;
   title: string;
   messageCount: number;
@@ -41,4 +45,7 @@ export type AppLogsListItemType = {
   userBadFeedbackCount: number;
   customFeedbacksCount: number;
   markCount: number;
+  outLinkUid?: string;
+  tmbId: string;
+  sourceMember: SourceMember;
 };

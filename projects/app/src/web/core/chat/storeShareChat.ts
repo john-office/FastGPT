@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
-import type { ChatHistoryItemType } from '@fastgpt/global/core/chat/type.d';
 import { customAlphabet } from 'nanoid';
 const nanoid = customAlphabet(
   'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWSYZ1234567890_',
@@ -10,8 +9,7 @@ const nanoid = customAlphabet(
 
 type State = {
   localUId: string;
-  shareChatHistory: (ChatHistoryItemType & { delete?: boolean })[];
-  clearLocalHistory: (shareId?: string) => void;
+  loaded: boolean;
 };
 
 export const useShareChatStore = create<State>()(
@@ -19,22 +17,17 @@ export const useShareChatStore = create<State>()(
     persist(
       immer((set, get) => ({
         localUId: `shareChat-${Date.now()}-${nanoid()}`,
-        shareChatHistory: [], // old version field
-        clearLocalHistory() {
-          // abandon
-          set((state) => {
-            state.shareChatHistory = state.shareChatHistory.map((item) => ({
-              ...item,
-              delete: true
-            }));
-          });
-        }
+        loaded: false
       })),
       {
         name: 'shareChatStore',
+        onRehydrateStorage: () => (state) => {
+          if (state) {
+            state.loaded = true;
+          }
+        },
         partialize: (state) => ({
-          localUId: state.localUId,
-          shareChatHistory: state.shareChatHistory
+          localUId: state.localUId
         })
       }
     )

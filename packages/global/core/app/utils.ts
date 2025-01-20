@@ -1,133 +1,148 @@
-import type { AppSimpleEditFormType } from '../app/type';
-import { FlowNodeTypeEnum } from '../module/node/constant';
-import { ModuleOutputKeyEnum, ModuleInputKeyEnum } from '../module/constants';
-import type { FlowNodeInputItemType } from '../module/node/type.d';
-import { getGuideModule, splitGuideModule } from '../module/utils';
-import { ModuleItemType } from '../module/type.d';
-import { DatasetSearchModeEnum } from '../dataset/constant';
+import type { AppChatConfigType, AppSimpleEditFormType } from '../app/type';
+import { FlowNodeTypeEnum } from '../workflow/node/constant';
+import { NodeInputKeyEnum, FlowNodeTemplateTypeEnum } from '../workflow/constants';
+import type { FlowNodeInputItemType } from '../workflow/type/io.d';
+import { getAppChatConfig } from '../workflow/utils';
+import { StoreNodeItemType } from '../workflow/type/node';
+import { DatasetSearchModeEnum } from '../dataset/constants';
+import { WorkflowTemplateBasicType } from '../workflow/type';
+import { AppTypeEnum } from './constants';
 
-export const getDefaultAppForm = (templateId = 'fastgpt-universal'): AppSimpleEditFormType => {
+export const getDefaultAppForm = (): AppSimpleEditFormType => {
   return {
-    templateId,
     aiSettings: {
-      model: 'gpt-3.5-turbo',
+      model: 'gpt-4o-mini',
       systemPrompt: '',
       temperature: 0,
       isResponseAnswerText: true,
-      quotePrompt: '',
-      quoteTemplate: '',
+      maxHistories: 6,
       maxToken: 4000
-    },
-    cfr: {
-      background: ''
     },
     dataset: {
       datasets: [],
       similarity: 0.4,
       limit: 1500,
-      searchEmptyText: '',
       searchMode: DatasetSearchModeEnum.embedding,
-      usingReRank: false
+      usingReRank: false,
+      datasetSearchUsingExtensionQuery: true,
+      datasetSearchExtensionBg: ''
     },
-    userGuide: {
-      welcomeText: '',
-      variables: [],
-      questionGuide: false,
-      tts: {
-        type: 'web'
-      }
-    }
+    selectedTools: [],
+    chatConfig: {}
   };
 };
 
-/* format app modules to edit form */
-export const appModules2Form = ({
-  templateId,
-  modules
+/* format app nodes to edit form */
+export const appWorkflow2Form = ({
+  nodes,
+  chatConfig
 }: {
-  modules: ModuleItemType[];
-  templateId: string;
+  nodes: StoreNodeItemType[];
+  chatConfig: AppChatConfigType;
 }) => {
-  const defaultAppForm = getDefaultAppForm(templateId);
-
+  const defaultAppForm = getDefaultAppForm();
   const findInputValueByKey = (inputs: FlowNodeInputItemType[], key: string) => {
     return inputs.find((item) => item.key === key)?.value;
   };
 
-  modules.forEach((module) => {
-    if (module.flowType === FlowNodeTypeEnum.chatNode) {
-      defaultAppForm.aiSettings.model = findInputValueByKey(
-        module.inputs,
-        ModuleInputKeyEnum.aiModel
-      );
+  nodes.forEach((node) => {
+    if (
+      node.flowNodeType === FlowNodeTypeEnum.chatNode ||
+      node.flowNodeType === FlowNodeTypeEnum.tools
+    ) {
+      defaultAppForm.aiSettings.model = findInputValueByKey(node.inputs, NodeInputKeyEnum.aiModel);
       defaultAppForm.aiSettings.systemPrompt = findInputValueByKey(
-        module.inputs,
-        ModuleInputKeyEnum.aiSystemPrompt
+        node.inputs,
+        NodeInputKeyEnum.aiSystemPrompt
       );
       defaultAppForm.aiSettings.temperature = findInputValueByKey(
-        module.inputs,
-        ModuleInputKeyEnum.aiChatTemperature
+        node.inputs,
+        NodeInputKeyEnum.aiChatTemperature
       );
       defaultAppForm.aiSettings.maxToken = findInputValueByKey(
-        module.inputs,
-        ModuleInputKeyEnum.aiChatMaxToken
+        node.inputs,
+        NodeInputKeyEnum.aiChatMaxToken
       );
-      defaultAppForm.aiSettings.quoteTemplate = findInputValueByKey(
-        module.inputs,
-        ModuleInputKeyEnum.aiChatQuoteTemplate
+      defaultAppForm.aiSettings.maxHistories = findInputValueByKey(
+        node.inputs,
+        NodeInputKeyEnum.history
       );
-      defaultAppForm.aiSettings.quotePrompt = findInputValueByKey(
-        module.inputs,
-        ModuleInputKeyEnum.aiChatQuotePrompt
-      );
-    } else if (module.flowType === FlowNodeTypeEnum.datasetSearchNode) {
+    } else if (node.flowNodeType === FlowNodeTypeEnum.datasetSearchNode) {
       defaultAppForm.dataset.datasets = findInputValueByKey(
-        module.inputs,
-        ModuleInputKeyEnum.datasetSelectList
+        node.inputs,
+        NodeInputKeyEnum.datasetSelectList
       );
       defaultAppForm.dataset.similarity = findInputValueByKey(
-        module.inputs,
-        ModuleInputKeyEnum.datasetSimilarity
+        node.inputs,
+        NodeInputKeyEnum.datasetSimilarity
       );
       defaultAppForm.dataset.limit = findInputValueByKey(
-        module.inputs,
-        ModuleInputKeyEnum.datasetLimit
+        node.inputs,
+        NodeInputKeyEnum.datasetMaxTokens
       );
       defaultAppForm.dataset.searchMode =
-        findInputValueByKey(module.inputs, ModuleInputKeyEnum.datasetSearchMode) ||
+        findInputValueByKey(node.inputs, NodeInputKeyEnum.datasetSearchMode) ||
         DatasetSearchModeEnum.embedding;
       defaultAppForm.dataset.usingReRank = !!findInputValueByKey(
-        module.inputs,
-        ModuleInputKeyEnum.datasetSearchUsingReRank
+        node.inputs,
+        NodeInputKeyEnum.datasetSearchUsingReRank
       );
+      defaultAppForm.dataset.datasetSearchUsingExtensionQuery = findInputValueByKey(
+        node.inputs,
+        NodeInputKeyEnum.datasetSearchUsingExtensionQuery
+      );
+      defaultAppForm.dataset.datasetSearchExtensionModel = findInputValueByKey(
+        node.inputs,
+        NodeInputKeyEnum.datasetSearchExtensionModel
+      );
+      defaultAppForm.dataset.datasetSearchExtensionBg = findInputValueByKey(
+        node.inputs,
+        NodeInputKeyEnum.datasetSearchExtensionBg
+      );
+    } else if (
+      node.flowNodeType === FlowNodeTypeEnum.pluginModule ||
+      node.flowNodeType === FlowNodeTypeEnum.appModule
+    ) {
+      if (!node.pluginId) return;
 
-      // empty text
-      const emptyOutputs =
-        module.outputs.find((item) => item.key === ModuleOutputKeyEnum.datasetIsEmpty)?.targets ||
-        [];
-      const emptyOutput = emptyOutputs[0];
-      if (emptyOutput) {
-        const target = modules.find((item) => item.moduleId === emptyOutput.moduleId);
-        defaultAppForm.dataset.searchEmptyText =
-          target?.inputs?.find((item) => item.key === ModuleInputKeyEnum.answerText)?.value || '';
-      }
-    } else if (module.flowType === FlowNodeTypeEnum.userGuide) {
-      const { welcomeText, variableModules, questionGuide, ttsConfig } = splitGuideModule(
-        getGuideModule(modules)
-      );
-      defaultAppForm.userGuide = {
-        welcomeText: welcomeText,
-        variables: variableModules,
-        questionGuide: questionGuide,
-        tts: ttsConfig
-      };
-    } else if (module.flowType === FlowNodeTypeEnum.cfr) {
-      const value = module.inputs.find((item) => item.key === ModuleInputKeyEnum.aiSystemPrompt);
-      if (value) {
-        defaultAppForm.cfr.background = value.value;
-      }
+      defaultAppForm.selectedTools.push({
+        id: node.nodeId,
+        pluginId: node.pluginId,
+        name: node.name,
+        avatar: node.avatar,
+        intro: node.intro || '',
+        flowNodeType: node.flowNodeType,
+        showStatus: node.showStatus,
+        version: node.version,
+        inputs: node.inputs,
+        outputs: node.outputs,
+        templateType: FlowNodeTemplateTypeEnum.other
+      });
+    } else if (node.flowNodeType === FlowNodeTypeEnum.systemConfig) {
+      defaultAppForm.chatConfig = getAppChatConfig({
+        chatConfig,
+        systemConfigNode: node,
+        isPublicFetch: true
+      });
     }
   });
 
   return defaultAppForm;
+};
+
+export const getAppType = (config?: WorkflowTemplateBasicType | AppSimpleEditFormType) => {
+  if (!config) return '';
+
+  if ('aiSettings' in config) {
+    return AppTypeEnum.simple;
+  }
+
+  if (!('nodes' in config)) return '';
+  if (config.nodes.some((node) => node.flowNodeType === 'workflowStart')) {
+    return AppTypeEnum.workflow;
+  }
+  if (config.nodes.some((node) => node.flowNodeType === 'pluginInput')) {
+    return AppTypeEnum.plugin;
+  }
+  return '';
 };

@@ -1,12 +1,21 @@
-### Fast GPT V4.6.6
+### FastGPT V4.8.16 更新说明
 
-1. 新增 - Http 模块请求头支持 Json 编辑器。
-2. 新增 - 搜索方式：分离向量语义检索，全文检索和重排，通过 RRF 进行排序合并。
-3. 新增 - [问题补全模块](https://doc.fastgpt.in/docs/workflow/modules/coreferenceresolution/)
-5. 新增 - [文本编辑模块](https://doc.fastgpt.in/docs/workflow/modules/text_editor/)
-6. 新增 - [判断器模块](https://doc.fastgpt.in/docs/workflow/modules/tfswitch/)
-7. 新增 - [自定义反馈模块](https://doc.fastgpt.in/docs/workflow/modules/custom_feedback/)
-8. 新增 - 【内容提取】模块支持选择模型，以及字段枚举
-9. [使用文档](https://doc.fastgpt.in/docs/intro/)
-10. [点击查看高级编排介绍文档](https://doc.fastgpt.in/docs/workflow)
-11. [点击查看商业版](https://doc.fastgpt.in/docs/commercial/)
+1. 新增 - SearXNG 搜索插件[点击查看教程](https://doc.fastgpt.cn//docs/guide/plugins/searxng_plugin_guide/)
+2. 新增 - 商业版支持 API 知识库和链接集合定时同步。
+3. 新增 - 猜你想问支持选择模型和自定义提示词。
+4. 新增 - 钉钉和企微机器人 webhook 插件。
+5. 新增 - 商业版支持钉钉 SSO 登录配置。[点击查看教程](https://doc.fastgpt.cn//docs/guide/admin/sso_dingtalk/)
+6. 新增 - 商业版支持飞书和语雀知识库导入。[点击查看教程](https://doc.fastgpt.cn//docs/guide/knowledge_base/lark_dataset/)
+7. 新增 - sandbox 新增 createHmac 加密全局方法。
+8. 新增 - 工作流右键支持全部折叠。
+9. 优化 - 工作流/简易模式变量初始化代码，去除监听初始化，避免因渲染顺序不一致导致的失败。
+10. 优化 - 工作流获取数据类型不一致数据时，增加类型转化，避免 undefined。
+11. 修复 - 无法自动切换默认语言。增加分享链接，强制执行一次切换默认语言。
+12. 修复 - 数组选择器自动兼容 4.8.13 以前的数据。
+13. 修复 - 站点同步知识库，链接同步时未使用选择器。
+14. 修复 - 简易模式转工作流，没有把系统配置项转化。
+15. 修复 - 插件独立运行，变量初始值未赋上。
+16. 修复 - 工作流使用弹窗组件时，关闭弹窗后，有时候会出现页面偏移。
+17. 修复 - 插件调试时，日志未保存插件输入参数。
+
+

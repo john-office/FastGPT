@@ -1,62 +1,86 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { jsonRes } from '@fastgpt/service/common/response';
-import { connectToDatabase } from '@/service/mongo';
 import { MongoChat } from '@fastgpt/service/core/chat/chatSchema';
-import type { ChatHistoryItemType } from '@fastgpt/global/core/chat/type.d';
 import { ChatSourceEnum } from '@fastgpt/global/core/chat/constants';
-import { getHistoriesProps } from '@/global/core/chat/api';
 import { authOutLink } from '@/service/support/permission/auth/outLink';
 import { authCert } from '@fastgpt/service/support/permission/auth/common';
+import { authTeamSpaceToken } from '@/service/support/permission/auth/team';
+import { NextAPI } from '@/service/middleware/entry';
+import { ApiRequestProps, ApiResponseType } from '@fastgpt/service/type/next';
+import { PaginationProps, PaginationResponse } from '@fastgpt/web/common/fetch/type';
+import { GetHistoriesProps } from '@/global/core/chat/api';
+import { parsePaginationRequest } from '@fastgpt/service/common/api/pagination';
+import { addMonths } from 'date-fns';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  try {
-    await connectToDatabase();
-    const { appId, shareId, outLinkUid } = req.body as getHistoriesProps;
+export type getHistoriesQuery = {};
 
-    const limit = shareId && outLinkUid ? 20 : 30;
+export type getHistoriesBody = PaginationProps<GetHistoriesProps>;
 
-    const match = await (async () => {
-      if (shareId && outLinkUid) {
-        const { uid } = await authOutLink({ shareId, outLinkUid });
+export type getHistoriesResponse = {};
 
-        return {
-          shareId,
-          outLinkUid: uid,
-          source: ChatSourceEnum.share,
-          updateTime: {
-            $gte: new Date(new Date().setDate(new Date().getDate() - 30))
-          }
-        };
-      }
-      if (appId) {
-        const { tmbId } = await authCert({ req, authToken: true });
-        return {
-          appId,
-          tmbId,
-          source: ChatSourceEnum.online
-        };
-      }
-      return Promise.reject('Params are error');
-    })();
+async function handler(
+  req: ApiRequestProps<getHistoriesBody, getHistoriesQuery>,
+  _res: ApiResponseType<any>
+): Promise<PaginationResponse<getHistoriesResponse>> {
+  const { appId, shareId, outLinkUid, teamId, teamToken, source } = req.body;
+  const { offset, pageSize } = parsePaginationRequest(req);
 
-    const data = await MongoChat.find(match, 'chatId title top customTitle appId updateTime')
-      .sort({ top: -1, updateTime: -1 })
-      .limit(limit);
+  const match = await (async () => {
+    if (shareId && outLinkUid) {
+      const { uid } = await authOutLink({ shareId, outLinkUid });
 
-    jsonRes<ChatHistoryItemType[]>(res, {
-      data: data.map((item) => ({
-        chatId: item.chatId,
-        updateTime: item.updateTime,
-        appId: item.appId,
-        customTitle: item.customTitle,
-        title: item.title,
-        top: item.top
-      }))
-    });
-  } catch (err) {
-    jsonRes(res, {
-      code: 500,
-      error: err
-    });
+      return {
+        shareId,
+        outLinkUid: uid,
+        updateTime: {
+          $gte: addMonths(new Date(), -1)
+        }
+      };
+    }
+    if (appId && teamId && teamToken) {
+      const { uid } = await authTeamSpaceToken({ teamId, teamToken });
+      return {
+        teamId,
+        appId,
+        outLinkUid: uid,
+        source: ChatSourceEnum.team
+      };
+    }
+    if (appId) {
+      const { tmbId } = await authCert({ req, authToken: true, authApiKey: true });
+      return {
+        tmbId,
+        appId,
+        source
+      };
+    }
+  })();
+
+  if (!match) {
+    return {
+      list: [],
+      total: 0
+    };
   }
+
+  const [data, total] = await Promise.all([
+    await MongoChat.find(match, 'chatId title top customTitle appId updateTime')
+      .sort({ top: -1, updateTime: -1 })
+      .skip(offset)
+      .limit(pageSize)
+      .lean(),
+    MongoChat.countDocuments(match)
+  ]);
+
+  return {
+    list: data.map((item) => ({
+      chatId: item.chatId,
+      updateTime: item.updateTime,
+      appId: item.appId,
+      customTitle: item.customTitle,
+      title: item.title,
+      top: item.top
+    })),
+    total
+  };
 }
+
+export default NextAPI(handler);

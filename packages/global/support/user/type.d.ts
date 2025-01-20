@@ -1,31 +1,38 @@
-import { InformTypeEnum, UserStatusEnum } from './constant';
-import { TeamItemType } from './team/type';
+import { TeamPermission } from '../permission/user/controller';
+import { UserStatusEnum } from './constant';
+import { TeamMemberStatusEnum } from './team/constant';
+import { TeamTmbItemType } from './team/type';
 
 export type UserModelSchema = {
   _id: string;
   username: string;
   password: string;
-  avatar: string;
-  balance: number;
   promotionRate: number;
   inviterId?: string;
   openaiKey: string;
   createTime: number;
   timezone: string;
   status: `${UserStatusEnum}`;
-  openaiAccount?: {
-    key: string;
-    baseUrl: string;
+  lastLoginTmbId?: string;
+  fastgpt_sem?: {
+    keyword: string;
   };
 };
 
 export type UserType = {
   _id: string;
   username: string;
-  avatar: string;
-  balance: number;
+  avatar: string; // it should be team member's avatar after 4.8.18
   timezone: string;
   promotionRate: UserModelSchema['promotionRate'];
-  openaiAccount: UserModelSchema['openaiAccount'];
-  team: TeamItemType;
+  team: TeamTmbItemType;
+  standardInfo?: standardInfoType;
+  notificationAccount?: string;
+  permission: TeamPermission;
+};
+
+export type SourceMemberType = {
+  name: string;
+  avatar: string;
+  status: `${TeamMemberStatusEnum}`;
 };

@@ -1,8 +1,8 @@
 /* 模型的知识库 */
-import { connectionMongo, type Model } from '../../../common/mongo';
+import { connectionMongo, getMongoModel, type Model } from '../../../common/mongo';
 const { Schema, model, models } = connectionMongo;
 import { DatasetTrainingSchemaType } from '@fastgpt/global/core/dataset/type';
-import { DatasetDataIndexTypeMap, TrainingTypeMap } from '@fastgpt/global/core/dataset/constant';
+import { TrainingTypeMap } from '@fastgpt/global/core/dataset/constants';
 import { DatasetColCollectionName } from '../collection/schema';
 import { DatasetCollectionName } from '../schema';
 import {
@@ -10,14 +10,9 @@ import {
   TeamMemberCollectionName
 } from '@fastgpt/global/support/user/team/constant';
 
-export const DatasetTrainingCollectionName = 'dataset.trainings';
+export const DatasetTrainingCollectionName = 'dataset_trainings';
 
 const TrainingDataSchema = new Schema({
-  userId: {
-    // abandon
-    type: Schema.Types.ObjectId,
-    ref: 'user'
-  },
   teamId: {
     type: Schema.Types.ObjectId,
     ref: TeamCollectionName,
@@ -40,8 +35,7 @@ const TrainingDataSchema = new Schema({
   },
   billId: {
     // concat bill
-    type: String,
-    default: ''
+    type: String
   },
   mode: {
     type: String,
@@ -57,6 +51,11 @@ const TrainingDataSchema = new Schema({
     type: Date,
     default: () => new Date('2000/1/1')
   },
+  retryCount: {
+    type: Number,
+    default: 5
+  },
+
   model: {
     // ai model
     type: String,
@@ -69,7 +68,7 @@ const TrainingDataSchema = new Schema({
   },
   q: {
     type: String,
-    required: true
+    default: ''
   },
   a: {
     type: String,
@@ -83,14 +82,12 @@ const TrainingDataSchema = new Schema({
     type: Number,
     default: 0
   },
+  dataId: {
+    type: Schema.Types.ObjectId
+  },
   indexes: {
     type: [
       {
-        type: {
-          type: String,
-          enum: Object.keys(DatasetDataIndexTypeMap),
-          required: true
-        },
         text: {
           type: String,
           required: true
@@ -102,17 +99,16 @@ const TrainingDataSchema = new Schema({
 });
 
 try {
-  TrainingDataSchema.index({ teamId: 1 });
-  TrainingDataSchema.index({ weight: -1 });
-  TrainingDataSchema.index({ lockTime: 1 });
-  TrainingDataSchema.index({ datasetId: 1 });
-  TrainingDataSchema.index({ collectionId: 1 });
-  TrainingDataSchema.index({ expireAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 });
+  // lock training data(teamId); delete training data
+  TrainingDataSchema.index({ teamId: 1, datasetId: 1 });
+  // get training data and sort
+  TrainingDataSchema.index({ mode: 1, retryCount: 1, lockTime: 1, weight: -1 });
+  TrainingDataSchema.index({ expireAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60 }); // 7 days
 } catch (error) {
   console.log(error);
 }
 
-export const MongoDatasetTraining: Model<DatasetTrainingSchemaType> =
-  models[DatasetTrainingCollectionName] || model(DatasetTrainingCollectionName, TrainingDataSchema);
-
-MongoDatasetTraining.syncIndexes();
+export const MongoDatasetTraining = getMongoModel<DatasetTrainingSchemaType>(
+  DatasetTrainingCollectionName,
+  TrainingDataSchema
+);

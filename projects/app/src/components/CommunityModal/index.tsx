@@ -1,18 +1,20 @@
 import React from 'react';
 import { Button, ModalFooter, ModalBody } from '@chakra-ui/react';
-import MyModal from '../MyModal';
+import MyModal from '@fastgpt/web/components/common/MyModal';
 import { useTranslation } from 'next-i18next';
 import Markdown from '../Markdown';
-import { feConfigs } from '@/web/common/system/staticData';
+import { useSystemStore } from '@/web/common/system/useSystemStore';
 
 const CommunityModal = ({ onClose }: { onClose: () => void }) => {
   const { t } = useTranslation();
+  const { feConfigs } = useSystemStore();
+
   return (
     <MyModal
       isOpen={true}
       onClose={onClose}
-      iconSrc="/imgs/modal/concat.svg"
-      title={t('home.Community')}
+      iconSrc="modal/concat"
+      title={t('common:system.Concat us')}
     >
       <ModalBody textAlign={'center'}>
         <Markdown source={feConfigs?.concatMd || ''} />
@@ -20,7 +22,7 @@ const CommunityModal = ({ onClose }: { onClose: () => void }) => {
 
       <ModalFooter>
         <Button variant={'whiteBase'} onClick={onClose}>
-          关闭
+          {t('common:common.Close')}
         </Button>
       </ModalFooter>
     </MyModal>

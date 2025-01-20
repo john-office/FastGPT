@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { Box, Flex, useColorModeValue } from '@chakra-ui/react';
+import { Box, Flex } from '@chakra-ui/react';
 import Icon from '@fastgpt/web/components/common/Icon';
 import { useCopyData } from '@/web/common/hooks/useCopyData';
+import { useTranslation } from 'next-i18next';
 
-const codeLight: { [key: string]: React.CSSProperties } = {
+export const codeLight: { [key: string]: React.CSSProperties } = {
   'code[class*=language-]': {
     color: '#d4d4d4',
     textShadow: 'none',
@@ -286,32 +287,48 @@ const codeLight: { [key: string]: React.CSSProperties } = {
 const CodeLight = ({
   children,
   className,
-  inline,
+  codeBlock,
   match
 }: {
   children: React.ReactNode & React.ReactNode[];
   className?: string;
-  inline?: boolean;
+  codeBlock?: boolean;
   match: RegExpExecArray | null;
 }) => {
+  const { t } = useTranslation();
   const { copyData } = useCopyData();
 
-  if (!inline) {
+  if (codeBlock) {
+    const codeBoxName = useMemo(() => {
+      const input = match?.['input'] || '';
+      if (!input) return match?.[1];
+
+      const splitInput = input.split('#');
+      return splitInput[1] || match?.[1];
+    }, [match]);
+
     return (
-      <Box my={3} borderRadius={'md'} overflow={'overlay'} backgroundColor={'#222'}>
+      <Box
+        my={3}
+        borderRadius={'md'}
+        overflow={'overlay'}
+        boxShadow={
+          '0px 0px 1px 0px rgba(19, 51, 107, 0.08), 0px 1px 2px 0px rgba(19, 51, 107, 0.05)'
+        }
+      >
         <Flex
           className="code-header"
           py={2}
           px={5}
-          backgroundColor={useColorModeValue('#323641', 'gray.600')}
-          color={'#fff'}
+          bg={'myGray.600'}
+          color={'white'}
           fontSize={'sm'}
           userSelect={'none'}
         >
-          <Box flex={1}>{match?.[1]}</Box>
+          <Box flex={1}>{codeBoxName}</Box>
           <Flex cursor={'pointer'} onClick={() => copyData(String(children))} alignItems={'center'}>
-            <Icon name={'copy'} width={15} height={15} fill={'#fff'}></Icon>
-            <Box ml={1}>复制</Box>
+            <Icon name={'copy'} width={15} height={15}></Icon>
+            <Box ml={1}>{t('common:common.Copy')}</Box>
           </Flex>
         </Flex>
         <SyntaxHighlighter style={codeLight as any} language={match?.[1]} PreTag="pre">

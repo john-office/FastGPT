@@ -1,24 +1,19 @@
-import { TrainingModeEnum, DatasetCollectionTypeEnum, DatasetDataIndexTypeEnum } from './constant';
+import { TrainingModeEnum, DatasetCollectionTypeEnum } from './constants';
 import { getFileIcon } from '../../common/file/icon';
 import { strIsLink } from '../../common/string/tools';
 
 export function getCollectionIcon(
-  type: `${DatasetCollectionTypeEnum}` = DatasetCollectionTypeEnum.file,
+  type: DatasetCollectionTypeEnum = DatasetCollectionTypeEnum.file,
   name = ''
 ) {
   if (type === DatasetCollectionTypeEnum.folder) {
-    return '/imgs/files/folder.svg';
+    return 'common/folderFill';
   }
   if (type === DatasetCollectionTypeEnum.link) {
-    return '/imgs/files/link.svg';
+    return 'common/linkBlue';
   }
   if (type === DatasetCollectionTypeEnum.virtual) {
-    if (name === '手动录入') {
-      return '/imgs/files/manual.svg';
-    } else if (name === '手动标注') {
-      return '/imgs/files/mark.svg';
-    }
-    return '/imgs/files/collection.svg';
+    return 'file/fill/manual';
   }
   return getFileIcon(name);
 }
@@ -29,34 +24,32 @@ export function getSourceNameIcon({
   sourceName: string;
   sourceId?: string;
 }) {
-  if (strIsLink(sourceId)) {
-    return '/imgs/files/link.svg';
-  }
-  const fileIcon = getFileIcon(sourceName, '');
-  if (fileIcon) {
-    return fileIcon;
-  }
+  try {
+    const fileIcon = getFileIcon(decodeURIComponent(sourceName.replace(/%/g, '%25')), '');
+    if (fileIcon) {
+      return fileIcon;
+    }
+    if (strIsLink(sourceId)) {
+      return 'common/linkBlue';
+    }
+  } catch (error) {}
 
-  if (sourceName === '手动录入') {
-    return '/imgs/files/manual.svg';
-  } else if (sourceName === '手动标注') {
-    return '/imgs/files/mark.svg';
-  }
-  return '/imgs/files/collection.svg';
+  return 'file/fill/file';
 }
 
+/* get dataset data default index */
 export function getDefaultIndex(props?: { q?: string; a?: string; dataId?: string }) {
   const { q = '', a, dataId } = props || {};
   const qaStr = `${q}\n${a}`.trim();
   return {
     defaultIndex: true,
-    type: a ? DatasetDataIndexTypeEnum.qa : DatasetDataIndexTypeEnum.chunk,
     text: a ? qaStr : q,
     dataId
   };
 }
 
-export const predictDataLimitLength = (mode: `${TrainingModeEnum}`, data: any[]) => {
+export const predictDataLimitLength = (mode: TrainingModeEnum, data: any[]) => {
   if (mode === TrainingModeEnum.qa) return data.length * 20;
+  if (mode === TrainingModeEnum.auto) return data.length * 5;
   return data.length;
 };

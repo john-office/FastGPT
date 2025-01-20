@@ -1,9 +1,9 @@
-export type UpdateChatFeedbackProps = {
+import { OutLinkChatAuthProps } from '../../support/permission/chat';
+
+export type UpdateChatFeedbackProps = OutLinkChatAuthProps & {
   appId: string;
   chatId: string;
-  chatItemId: string;
-  shareId?: string;
-  outLinkUid?: string;
+  dataId: string;
   userBadFeedback?: string;
   userGoodFeedback?: string;
 };

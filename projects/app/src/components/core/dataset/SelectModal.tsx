@@ -1,10 +1,11 @@
 import { getDatasets, getDatasetPaths } from '@/web/core/dataset/api';
-import MyModal from '@/components/MyModal';
+import MyModal from '@fastgpt/web/components/common/MyModal';
 import { useQuery } from '@tanstack/react-query';
 import React, { Dispatch, useMemo, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { Box } from '@chakra-ui/react';
 import ParentPaths from '@/components/common/ParentPaths';
+import MyBox from '@fastgpt/web/components/common/MyBox';
 
 type PathItemType = {
   parentId: string;
@@ -17,6 +18,7 @@ const DatasetSelectContainer = ({
   paths,
   onClose,
   tips,
+  isLoading,
   children
 }: {
   isOpen: boolean;
@@ -24,13 +26,14 @@ const DatasetSelectContainer = ({
   paths: PathItemType[];
   onClose: () => void;
   tips?: string | null;
+  isLoading?: boolean;
   children: React.ReactNode;
 }) => {
   const { t } = useTranslation();
 
   return (
     <MyModal
-      iconSrc="/imgs/module/db.png"
+      iconSrc="/imgs/workflow/db.png"
       title={
         <Box fontWeight={'normal'}>
           <ParentPaths
@@ -38,7 +41,7 @@ const DatasetSelectContainer = ({
               parentId: path.parentId,
               parentName: path.parentName
             }))}
-            FirstPathDom={t('core.chat.Select Mark Kb')}
+            FirstPathDom={t('common:core.chat.Select dataset')}
             onClick={(e) => {
               setParentId(e);
             }}
@@ -57,7 +60,9 @@ const DatasetSelectContainer = ({
       maxW={['90vw', '900px']}
       isCentered
     >
-      {children}
+      <MyBox isLoading={isLoading} h={'100%'}>
+        {children}
+      </MyBox>
     </MyModal>
   );
 };

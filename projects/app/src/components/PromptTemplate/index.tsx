@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import MyModal from '../MyModal';
+import MyModal from '@fastgpt/web/components/common/MyModal';
 import { Box, Button, Flex, Grid, useTheme } from '@chakra-ui/react';
 import { PromptTemplateItem } from '@fastgpt/global/core/ai/type.d';
 import { ModalBody, ModalFooter } from '@chakra-ui/react';
-
+import { useTranslation } from 'next-i18next';
 const PromptTemplate = ({
   title,
   templates,
@@ -17,7 +17,7 @@ const PromptTemplate = ({
 }) => {
   const theme = useTheme();
   const [selectTemplateTitle, setSelectTemplateTitle] = useState<PromptTemplateItem>();
-
+  const { t } = useTranslation();
   return (
     <MyModal isOpen title={title} onClose={onClose} iconSrc="/imgs/modal/prompt.svg">
       <ModalBody h="100%" w={'600px'} maxW={'90vw'} overflowY={'auto'}>
@@ -37,10 +37,10 @@ const PromptTemplate = ({
                 : {})}
               onClick={() => setSelectTemplateTitle(item)}
             >
-              <Box>{item.title}</Box>
+              <Box color={'myGray.900'}>{t(item.title as any)}</Box>
 
-              <Box color={'myGray.600'} fontSize={'sm'} whiteSpace={'pre-wrap'}>
-                {item.desc}
+              <Box color={'myGray.500'} fontSize={'xs'} whiteSpace={'pre-wrap'}>
+                {t(item.desc as any)}
               </Box>
             </Box>
           ))}
@@ -55,7 +55,7 @@ const PromptTemplate = ({
             onClose();
           }}
         >
-          确认选择
+          {t('common:confirm_choice')}
         </Button>
       </ModalFooter>
     </MyModal>

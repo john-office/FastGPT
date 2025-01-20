@@ -4,15 +4,20 @@ import axios, {
   AxiosResponse,
   AxiosProgressEvent
 } from 'axios';
-import { clearToken, getToken } from '@/web/support/user/auth';
+import { clearToken } from '@/web/support/user/auth';
 import { TOKEN_ERROR_CODE } from '@fastgpt/global/common/error/errorCode';
+import { TeamErrEnum } from '@fastgpt/global/common/error/code/team';
+import { useSystemStore } from '../system/useSystemStore';
+import { getWebReqUrl } from '@fastgpt/web/common/system/utils';
+import { i18nT } from '@fastgpt/web/i18n/utils';
 
 interface ConfigType {
   headers?: { [key: string]: string };
   timeout?: number;
   onUploadProgress?: (progressEvent: AxiosProgressEvent) => void;
   cancelToken?: AbortController;
-  maxQuantity?: number;
+  maxQuantity?: number; // The maximum number of simultaneous requests, usually used to cancel old requests
+  withCredentials?: boolean;
 }
 interface ResponseDataType {
   code: number;
@@ -28,20 +33,28 @@ const maxQuantityMap: Record<
   }
 > = {};
 
-function requestStart({ url, maxQuantity }: { url: string; maxQuantity?: number }) {
-  if (!maxQuantity) return;
-  const item = maxQuantityMap[url];
+function checkMaxQuantity({ url, maxQuantity }: { url: string; maxQuantity?: number }) {
+  if (maxQuantity) {
+    const item = maxQuantityMap[url];
+    const controller = new AbortController();
 
-  if (item) {
-    if (item.amount >= maxQuantity && item.sign) {
-      item.sign.abort();
-      delete maxQuantityMap[url];
+    if (item) {
+      if (item.amount >= maxQuantity) {
+        !item.sign?.signal?.aborted && item.sign?.abort?.();
+        maxQuantityMap[url] = {
+          amount: 1,
+          sign: controller
+        };
+      } else {
+        item.amount++;
+      }
+    } else {
+      maxQuantityMap[url] = {
+        amount: 1,
+        sign: controller
+      };
     }
-  } else {
-    maxQuantityMap[url] = {
-      amount: 1,
-      sign: new AbortController()
-    };
+    return controller;
   }
 }
 function requestFinish({ url }: { url: string }) {
@@ -59,7 +72,6 @@ function requestFinish({ url }: { url: string }) {
  */
 function startInterceptors(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
   if (config.headers) {
-    config.headers.token = getToken();
   }
 
   return config;
@@ -97,16 +109,24 @@ function responseError(err: any) {
     return Promise.reject({ message: err });
   }
   // 有报错响应
-  if (err?.code in TOKEN_ERROR_CODE) {
-    clearToken();
-
-    if (window.location.pathname !== '/chat/share') {
+  if (err?.code in TOKEN_ERROR_CODE || err?.response?.data?.code in TOKEN_ERROR_CODE) {
+    if (!['/chat/share', '/chat/team', '/login'].includes(window.location.pathname)) {
+      clearToken();
       window.location.replace(
-        `/login?lastRoute=${encodeURIComponent(location.pathname + location.search)}`
+        getWebReqUrl(`/login?lastRoute=${encodeURIComponent(location.pathname + location.search)}`)
       );
     }
 
-    return Promise.reject({ message: '无权操作' });
+    return Promise.reject({ message: i18nT('common:unauth_token') });
+  }
+  if (
+    err?.statusText === TeamErrEnum.aiPointsNotEnough ||
+    err?.statusText === TeamErrEnum.datasetSizeNotEnough ||
+    err?.statusText === TeamErrEnum.datasetAmountNotEnough ||
+    err?.statusText === TeamErrEnum.appAmountNotEnough
+  ) {
+    useSystemStore.getState().setNotSufficientModalType(err.statusText);
+    return Promise.reject(err);
   }
   if (err?.response?.data) {
     return Promise.reject(err?.response?.data);
@@ -130,26 +150,27 @@ instance.interceptors.response.use(responseSuccess, (err) => Promise.reject(err)
 function request(
   url: string,
   data: any,
-  { cancelToken, maxQuantity, ...config }: ConfigType,
+  { cancelToken, maxQuantity, withCredentials, ...config }: ConfigType,
   method: Method
 ): any {
   /* 去空 */
   for (const key in data) {
-    if (data[key] === null || data[key] === undefined) {
+    if (data[key] === undefined) {
       delete data[key];
     }
   }
 
-  requestStart({ url, maxQuantity });
+  const controller = checkMaxQuantity({ url, maxQuantity });
 
   return instance
     .request({
-      baseURL: '/api',
+      baseURL: getWebReqUrl('/api'),
       url,
       method,
-      data: ['POST', 'PUT'].includes(method) ? data : null,
-      params: !['POST', 'PUT'].includes(method) ? data : null,
-      signal: cancelToken?.signal,
+      data: ['POST', 'PUT'].includes(method) ? data : undefined,
+      params: !['POST', 'PUT'].includes(method) ? data : undefined,
+      signal: cancelToken?.signal ?? controller?.signal,
+      withCredentials,
       ...config // 用户自定义配置，可以覆盖前面的配置
     })
     .then((res) => checkRes(res.data))

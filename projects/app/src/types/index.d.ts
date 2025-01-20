@@ -5,43 +5,20 @@ import {
   LLMModelItemType,
   ReRankModelItemType,
   VectorModelItemType,
-  WhisperModelType
+  STTModelType
 } from '@fastgpt/global/core/ai/model.d';
-import { TrackEventName } from '@/constants/common';
-import { AppSimpleEditConfigTemplateType } from '@fastgpt/global/core/app/type';
-
-export type PagingData<T> = {
-  pageNum: number;
-  pageSize: number;
-  data: T[];
-  total?: number;
-};
-
-export type RequestPaging = { pageNum: number; pageSize: number; [key]: any };
+import { TrackEventName } from '@/web/common/system/constants';
+import { SubPlanType } from '@fastgpt/global/support/wallet/sub/type';
 
 declare global {
   var qaQueueLen: number;
   var vectorQueueLen: number;
 
-  var chatModels: ChatModelItemType[];
-  var vectorModels: VectorModelItemType[];
-  var qaModels: LLMModelItemType[];
-  var cqModels: FunctionModelItemType[];
-  var extractModels: FunctionModelItemType[];
-  var qgModels: LLMModelItemType[];
-  var audioSpeechModels: AudioSpeechModelType[];
-  var whisperModel: WhisperModelType;
-  var reRankModels: ReRankModelItemType[];
-
-  var systemVersion: string;
-
-  var simpleModeTemplates: AppSimpleEditConfigTemplateType[];
-
   interface Window {
     grecaptcha: any;
     QRCode: any;
     umami?: {
-      track: (event: `${TrackEventName}`, data: any) => void;
+      track: (event: TrackEventName, data: any) => void;
     };
   }
 }

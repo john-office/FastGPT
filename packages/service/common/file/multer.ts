@@ -3,9 +3,8 @@ import multer from 'multer';
 import path from 'path';
 import { BucketNameEnum, bucketNameMap } from '@fastgpt/global/common/file/constants';
 import { getNanoid } from '@fastgpt/global/common/string/tools';
-import { tmpFileDirPath } from './constants';
 
-type FileType = {
+export type FileType = {
   fieldname: string;
   originalname: string;
   encoding: string;
@@ -15,10 +14,12 @@ type FileType = {
   size: number;
 };
 
-const expiredTime = 30 * 60 * 1000;
-
+/* 
+  maxSize: File max size (MB)
+*/
 export const getUploadModel = ({ maxSize = 500 }: { maxSize?: number }) => {
   maxSize *= 1024 * 1024;
+
   class UploadModel {
     uploader = multer({
       limits: {
@@ -29,17 +30,26 @@ export const getUploadModel = ({ maxSize = 500 }: { maxSize?: number }) => {
         // destination: (_req, _file, cb) => {
         //   cb(null, tmpFileDirPath);
         // },
-        filename: async (req, file, cb) => {
-          const { ext } = path.parse(decodeURIComponent(file.originalname));
-          cb(null, `${Date.now() + expiredTime}-${getNanoid(32)}${ext}`);
+        filename: (req, file, cb) => {
+          if (!file?.originalname) {
+            cb(new Error('File not found'), '');
+          } else {
+            const { ext } = path.parse(decodeURIComponent(file.originalname));
+            cb(null, `${getNanoid()}${ext}`);
+          }
         }
       })
-    }).any();
+    }).single('file');
 
-    async doUpload<T = Record<string, any>>(req: NextApiRequest, res: NextApiResponse) {
+    async doUpload<T = any>(
+      req: NextApiRequest,
+      res: NextApiResponse,
+      originBucketName?: `${BucketNameEnum}`
+    ) {
       return new Promise<{
-        files: FileType[];
-        metadata: T;
+        file: FileType;
+        metadata: Record<string, any>;
+        data: T;
         bucketName?: `${BucketNameEnum}`;
       }>((resolve, reject) => {
         // @ts-ignore
@@ -49,25 +59,33 @@ export const getUploadModel = ({ maxSize = 500 }: { maxSize?: number }) => {
           }
 
           // check bucket name
-          const bucketName = req.body?.bucketName as `${BucketNameEnum}`;
+          const bucketName = (req.body?.bucketName || originBucketName) as `${BucketNameEnum}`;
           if (bucketName && !bucketNameMap[bucketName]) {
             return reject('BucketName is invalid');
           }
 
+          // @ts-ignore
+          const file = req.file as FileType;
+
           resolve({
-            ...req.body,
-            files:
-              // @ts-ignore
-              req.files?.map((file) => ({
-                ...file,
-                originalname: decodeURIComponent(file.originalname)
-              })) || [],
+            file: {
+              ...file,
+              originalname: decodeURIComponent(file.originalname)
+            },
+            bucketName,
             metadata: (() => {
               if (!req.body?.metadata) return {};
               try {
                 return JSON.parse(req.body.metadata);
               } catch (error) {
-                console.log(error);
+                return {};
+              }
+            })(),
+            data: (() => {
+              if (!req.body?.data) return {};
+              try {
+                return JSON.parse(req.body.data);
+              } catch (error) {
                 return {};
               }
             })()

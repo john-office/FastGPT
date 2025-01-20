@@ -1,42 +1,22 @@
+import { I18nNsType } from '@fastgpt/web/types/i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 
-export const LANG_KEY = 'NEXT_LOCALE_LANG';
 export enum LangEnum {
-  'zh' = 'zh',
+  'zh_CN' = 'zh-CN',
+  'zh_Hant' = 'zh-Hant',
   'en' = 'en'
 }
 export const langMap = {
   [LangEnum.en]: {
-    label: 'English',
-    icon: 'common/language/en'
+    label: 'English(US)',
+    avatar: 'common/language/America'
   },
-  [LangEnum.zh]: {
+  [LangEnum.zh_CN]: {
     label: '简体中文',
-    icon: 'common/language/zh'
+    avatar: 'common/language/China'
+  },
+  [LangEnum.zh_Hant]: {
+    label: '繁体中文',
+    avatar: 'common/language/China'
   }
-};
-
-export const serviceSideProps = (content: any) => {
-  return serverSideTranslations(content.locale, undefined, null, content.locales);
-};
-
-export const getLng = (lng: string) => {
-  return lng.split('-')[0];
-};
-export const change2DefaultLng = (currentLng: string) => {
-  if (!navigator || !localStorage) return;
-  if (localStorage.getItem(LANG_KEY)) return;
-  const userLang = navigator.language;
-
-  if (userLang.includes(currentLng)) {
-    return;
-  }
-
-  // currentLng not in userLang
-  return getLng(userLang);
-};
-
-export const setLngStore = (lng: string) => {
-  if (!localStorage) return;
-  localStorage.setItem(LANG_KEY, lng);
 };

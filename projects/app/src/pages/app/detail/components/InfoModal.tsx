@@ -1,83 +1,89 @@
-import React, { useState, useCallback } from 'react';
+import CollaboratorContextProvider from '@/components/support/permission/MemberManager/context';
+import ResumeInherit from '@/components/support/permission/ResumeInheritText';
+import { AppContext } from '@/pages/app/detail/components/context';
+import { useSelectFile } from '@/web/common/file/hooks/useSelectFile';
+import { useI18n } from '@/web/context/I18n';
+import { resumeInheritPer } from '@/web/core/app/api';
+import {
+  deleteAppCollaborators,
+  getCollaboratorList,
+  postUpdateAppCollaborators
+} from '@/web/core/app/api/collaborator';
 import {
   Box,
-  Flex,
   Button,
+  Flex,
   FormControl,
   Input,
-  Textarea,
-  ModalFooter,
   ModalBody,
-  Image
+  ModalFooter,
+  Textarea
 } from '@chakra-ui/react';
-import { useForm } from 'react-hook-form';
-import { AppSchema } from '@fastgpt/global/core/app/type.d';
-import { useToast } from '@/web/common/hooks/useToast';
-import { useSelectFile } from '@/web/common/file/hooks/useSelectFile';
-import { compressImgFileAndUpload } from '@/web/common/file/controller';
-import { getErrText } from '@fastgpt/global/common/error/utils';
-import { useRequest } from '@/web/common/hooks/useRequest';
-import Avatar from '@/components/Avatar';
-import MyModal from '@/components/MyModal';
-import { useAppStore } from '@/web/core/app/store/useAppStore';
-import PermissionRadio from '@/components/support/permission/Radio';
+import type { RequireOnlyOne } from '@fastgpt/global/common/type/utils';
+import type { AppSchema } from '@fastgpt/global/core/app/type.d';
+import { AppPermissionList } from '@fastgpt/global/support/permission/app/constant';
+import type { PermissionValueType } from '@fastgpt/global/support/permission/type';
+import Avatar from '@fastgpt/web/components/common/Avatar';
+import MyIcon from '@fastgpt/web/components/common/Icon';
+import MyModal from '@fastgpt/web/components/common/MyModal';
+import { useRequest2 } from '@fastgpt/web/hooks/useRequest';
+import { useToast } from '@fastgpt/web/hooks/useToast';
 import { useTranslation } from 'next-i18next';
-import { MongoImageTypeEnum } from '@fastgpt/global/common/file/image/constants';
+import React, { useCallback } from 'react';
+import { useForm } from 'react-hook-form';
+import { useContextSelector } from 'use-context-selector';
 
-const InfoModal = ({
-  defaultApp,
-  onClose,
-  onSuccess
-}: {
-  defaultApp: AppSchema;
-  onClose: () => void;
-  onSuccess?: () => void;
-}) => {
+const InfoModal = ({ onClose }: { onClose: () => void }) => {
   const { t } = useTranslation();
+  const { commonT } = useI18n();
   const { toast } = useToast();
-  const { updateAppDetail } = useAppStore();
+  const { updateAppDetail, appDetail, reloadApp } = useContextSelector(AppContext, (v) => v);
 
-  const { File, onOpen: onOpenSelectFile } = useSelectFile({
+  const {
+    File,
+    onOpen: onOpenSelectFile,
+    onSelectImage
+  } = useSelectFile({
     fileType: '.jpg,.png',
     multiple: false
   });
+
   const {
     register,
     setValue,
-    getValues,
+    watch,
     formState: { errors },
     handleSubmit
   } = useForm({
-    defaultValues: defaultApp
+    defaultValues: appDetail
   });
-  const [refresh, setRefresh] = useState(false);
+  const avatar = watch('avatar');
 
-  // 提交保存模型修改
-  const { mutate: saveSubmitSuccess, isLoading: btnLoading } = useRequest({
-    mutationFn: async (data: AppSchema) => {
-      await updateAppDetail(data._id, {
+  // submit config
+  const { runAsync: saveSubmitSuccess, loading: btnLoading } = useRequest2(
+    async (data: AppSchema) => {
+      await updateAppDetail({
         name: data.name,
         avatar: data.avatar,
-        intro: data.intro,
-        permission: data.permission
+        intro: data.intro
       });
     },
-    onSuccess() {
-      onSuccess && onSuccess();
-      onClose();
-      toast({
-        title: '更新成功',
-        status: 'success'
-      });
-    },
-    errorToast: '更新失败'
-  });
+    {
+      onSuccess() {
+        toast({
+          title: t('common:common.Update Success'),
+          status: 'success'
+        });
+        reloadApp();
+      },
+      errorToast: t('common:common.Update Failed')
+    }
+  );
 
-  // 提交保存表单失败
   const saveSubmitError = useCallback(() => {
     // deep search message
     const deepSearch = (obj: any): string => {
-      if (!obj) return '提交表单错误';
+      if (!obj) return t('common:common.Submit failed');
       if (!!obj.message) {
         return obj.message;
       }
@@ -89,101 +95,171 @@ const InfoModal = ({
       duration: 4000,
       isClosable: true
     });
-  }, [errors, toast]);
+  }, [errors, t, toast]);
 
   const saveUpdateModel = useCallback(
-    () => handleSubmit((data) => saveSubmitSuccess(data), saveSubmitError)(),
-    [handleSubmit, saveSubmitError, saveSubmitSuccess]
+    () => handleSubmit((data) => saveSubmitSuccess(data).then(onClose), saveSubmitError)(),
+    [handleSubmit, onClose, saveSubmitError, saveSubmitSuccess]
   );
 
-  const onSelectFile = useCallback(
-    async (e: File[]) => {
-      const file = e[0];
-      if (!file) return;
-      try {
-        const src = await compressImgFileAndUpload({
-          type: MongoImageTypeEnum.appAvatar,
-          file,
-          maxW: 300,
-          maxH: 300
-        });
-        setValue('avatar', src);
-        setRefresh((state) => !state);
-      } catch (err: any) {
-        toast({
-          title: getErrText(err, '头像选择异常'),
-          status: 'warning'
-        });
-      }
-    },
-    [setValue, toast]
-  );
+  const onUpdateCollaborators = ({
+    members,
+    groups,
+    orgs,
+    permission
+  }: {
+    members?: string[];
+    groups?: string[];
+    orgs?: string[];
+    permission: PermissionValueType;
+  }) =>
+    postUpdateAppCollaborators({
+      members,
+      groups,
+      permission,
+      orgs,
+      appId: appDetail._id
+    });
+
+  const onDelCollaborator = async (
+    props: RequireOnlyOne<{ tmbId: string; groupId: string; orgId: string }>
+  ) =>
+    deleteAppCollaborators({
+      appId: appDetail._id,
+      ...props
+    });
+
+  const { runAsync: resumeInheritPermission } = useRequest2(() => resumeInheritPer(appDetail._id), {
+    errorToast: t('common:resume_failed'),
+    onSuccess: () => {
+      reloadApp();
+    }
+  });
 
   return (
     <MyModal
       isOpen={true}
       onClose={onClose}
-      iconSrc="/imgs/module/ai.svg"
-      title={t('core.app.setting')}
+      iconSrc="/imgs/workflow/ai.svg"
+      title={t('common:core.app.setting')}
     >
       <ModalBody>
-        <Box>头像 & 名称</Box>
+        <Box fontSize={'sm'}>{t('common:core.app.Name and avatar')}</Box>
         <Flex mt={2} alignItems={'center'}>
           <Avatar
-            src={getValues('avatar')}
+            src={avatar}
             w={['26px', '34px']}
             h={['26px', '34px']}
             cursor={'pointer'}
             borderRadius={'md'}
             mr={4}
-            title={'点击切换头像'}
+            title={t('common:common.Set Avatar')}
             onClick={() => onOpenSelectFile()}
           />
           <FormControl>
             <Input
               bg={'myWhite.600'}
-              placeholder={'给应用设置一个名称'}
+              placeholder={t('common:core.app.Set a name for your app')}
               {...register('name', {
-                required: '展示名称不能为空'
+                required: true
               })}
             ></Input>
           </FormControl>
         </Flex>
-        <Box mt={4} mb={1}>
-          应用介绍
+        <Box mt={4} mb={1} fontSize={'sm'}>
+          {t('common:core.app.App intro')}
         </Box>
-        {/* <Box color={'myGray.500'} mb={2} fontSize={'sm'}>
-            该介绍主要用于记忆和在应用市场展示
-          </Box> */}
         <Textarea
           rows={4}
           maxLength={500}
-          placeholder={'给你的 AI 应用一个介绍'}
+          placeholder={t('common:core.app.Make a brief introduction of your app')}
           bg={'myWhite.600'}
           {...register('intro')}
         />
-        <Box mt={4}>
-          <Box mb={1}>{t('user.Permission')}</Box>
-          <PermissionRadio
-            value={getValues('permission')}
-            onChange={(e) => {
-              setValue('permission', e);
-              setRefresh(!refresh);
-            }}
-          />
-        </Box>
+
+        {/* role */}
+        {appDetail.permission.hasManagePer && (
+          <>
+            {!appDetail.inheritPermission && appDetail.parentId && (
+              <Box mt={3}>
+                <ResumeInherit onResume={resumeInheritPermission} />
+              </Box>
+            )}
+            <Box mt={6}>
+              <CollaboratorContextProvider
+                permission={appDetail.permission}
+                onGetCollaboratorList={() => getCollaboratorList(appDetail._id)}
+                permissionList={AppPermissionList}
+                onUpdateCollaborators={async (props) =>
+                  onUpdateCollaborators({
+                    permission: props.permission,
+                    members: props.members,
+                    groups: props.groups,
+                    orgs: props.orgs
+                  })
+                }
+                onDelOneCollaborator={onDelCollaborator}
+                refreshDeps={[appDetail.inheritPermission]}
+                isInheritPermission={appDetail.inheritPermission}
+                hasParent={!!appDetail.parentId}
+              >
+                {({ MemberListCard, onOpenManageModal, onOpenAddMember }) => {
+                  return (
+                    <>
+                      <Flex
+                        alignItems="center"
+                        flexDirection="row"
+                        justifyContent="space-between"
+                        w="full"
+                      >
+                        <Box fontSize={'sm'}>{commonT('permission.Collaborator')}</Box>
+                        <Flex flexDirection="row" gap="2">
+                          <Button
+                            size="sm"
+                            variant="whitePrimary"
+                            leftIcon={<MyIcon w="4" name="common/settingLight" />}
+                            onClick={onOpenManageModal}
+                          >
+                            {t('common:permission.Manage')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="whitePrimary"
+                            leftIcon={<MyIcon w="4" name="support/permission/collaborator" />}
+                            onClick={onOpenAddMember}
+                          >
+                            {t('common:common.Add')}
+                          </Button>
+                        </Flex>
+                      </Flex>
+                      <MemberListCard mt={2} p={1.5} bg="myGray.100" borderRadius="md" />
+                    </>
+                  );
+                }}
+              </CollaboratorContextProvider>
+            </Box>
+          </>
+        )}
       </ModalBody>
 
       <ModalFooter>
         <Button variant={'whiteBase'} mr={3} onClick={onClose}>
-          取消
+          {t('common:common.Close')}
         </Button>
         <Button isLoading={btnLoading} onClick={saveUpdateModel}>
-          保存
+          {t('common:common.Save')}
         </Button>
       </ModalFooter>
 
-      <File onSelect={onSelectFile} />
+      <File
+        onSelect={(e) =>
+          onSelectImage(e, {
+            maxH: 300,
+            maxW: 300,
+            callback: (e) => setValue('avatar', e)
+          })
+        }
+      />
     </MyModal>
   );
 };

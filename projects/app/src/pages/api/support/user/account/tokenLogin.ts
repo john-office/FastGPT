@@ -1,21 +1,40 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { jsonRes } from '@fastgpt/service/common/response';
 import { authCert } from '@fastgpt/service/support/permission/auth/common';
-import { connectToDatabase } from '@/service/mongo';
 import { getUserDetail } from '@fastgpt/service/support/user/controller';
+import type { ApiRequestProps, ApiResponseType } from '@fastgpt/service/type/next';
+import { NextAPI } from '@/service/middleware/entry';
+import { UserType } from '@fastgpt/global/support/user/type';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  try {
-    await connectToDatabase();
-    const { tmbId } = await authCert({ req, authToken: true });
+export type TokenLoginQuery = {};
+export type TokenLoginBody = {};
+export type TokenLoginResponse = UserType;
 
-    jsonRes(res, {
-      data: await getUserDetail({ tmbId })
-    });
-  } catch (err) {
-    jsonRes(res, {
-      code: 500,
-      error: err
-    });
+async function handler(
+  req: ApiRequestProps<TokenLoginBody, TokenLoginQuery>,
+  _res: ApiResponseType<any>
+): Promise<TokenLoginResponse> {
+  const { tmbId } = await authCert({ req, authToken: true });
+  const user = await getUserDetail({ tmbId });
+
+  // Remove sensitive information
+  if (user.team.lafAccount) {
+    user.team.lafAccount = {
+      appid: user.team.lafAccount.appid,
+      token: '',
+      pat: ''
+    };
   }
+  if (user.team.openaiAccount) {
+    user.team.openaiAccount = {
+      key: '',
+      baseUrl: user.team.openaiAccount.baseUrl
+    };
+  }
+  if (user.team.externalWorkflowVariables) {
+    user.team.externalWorkflowVariables = Object.fromEntries(
+      Object.entries(user.team.externalWorkflowVariables).map(([key, value]) => [key, ''])
+    );
+  }
+
+  return user;
 }
+export default NextAPI(handler);

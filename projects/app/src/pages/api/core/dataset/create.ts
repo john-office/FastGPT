@@ -1,67 +1,102 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { jsonRes } from '@fastgpt/service/common/response';
-import { connectToDatabase } from '@/service/mongo';
 import { MongoDataset } from '@fastgpt/service/core/dataset/schema';
 import type { CreateDatasetParams } from '@/global/core/dataset/api.d';
-import { createDefaultCollection } from '@fastgpt/service/core/dataset/collection/controller';
-import { authUserNotVisitor } from '@fastgpt/service/support/permission/auth/user';
-import { DatasetTypeEnum } from '@fastgpt/global/core/dataset/constant';
+import { authUserPer } from '@fastgpt/service/support/permission/user/auth';
+import { DatasetTypeEnum } from '@fastgpt/global/core/dataset/constants';
+import { getLLMModel, getVectorModel, getDatasetModel } from '@fastgpt/service/core/ai/model';
+import { checkTeamDatasetLimit } from '@fastgpt/service/support/permission/teamLimit';
+import { WritePermissionVal } from '@fastgpt/global/support/permission/constant';
+import { NextAPI } from '@/service/middleware/entry';
+import { DatasetErrEnum } from '@fastgpt/global/common/error/code/dataset';
+import type { ApiRequestProps } from '@fastgpt/service/type/next';
+import { parseParentIdInMongo } from '@fastgpt/global/common/parentFolder/utils';
+import { authDataset } from '@fastgpt/service/support/permission/dataset/auth';
+import { pushTrack } from '@fastgpt/service/common/middle/tracks/utils';
+import { mongoSessionRun } from '@fastgpt/service/common/mongo/sessionRun';
+import { refreshSourceAvatar } from '@fastgpt/service/common/file/image/controller';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
-  try {
-    await connectToDatabase();
-    const {
-      parentId,
-      name,
-      type,
-      avatar,
-      vectorModel = global.vectorModels[0].model,
-      agentModel = global.qaModels[0].model
-    } = req.body as CreateDatasetParams;
+export type DatasetCreateQuery = {};
+export type DatasetCreateBody = CreateDatasetParams;
+export type DatasetCreateResponse = string;
 
-    // auth
-    const { teamId, tmbId } = await authUserNotVisitor({ req, authToken: true });
+async function handler(
+  req: ApiRequestProps<DatasetCreateBody, DatasetCreateQuery>
+): Promise<DatasetCreateResponse> {
+  const {
+    parentId,
+    name,
+    intro,
+    type = DatasetTypeEnum.dataset,
+    avatar,
+    vectorModel = global.vectorModels[0].model,
+    agentModel = getDatasetModel().model,
+    apiServer,
+    feishuServer,
+    yuqueServer
+  } = req.body;
 
-    // check model valid
-    const vectorModelStore = global.vectorModels.find((item) => item.model === vectorModel);
-    const agentModelStore = global.qaModels.find((item) => item.model === agentModel);
-    if (!vectorModelStore || !agentModelStore) {
-      throw new Error('vectorModel or qaModel is invalid');
-    }
+  // auth
+  const [{ teamId, tmbId, userId }] = await Promise.all([
+    authUserPer({
+      req,
+      authToken: true,
+      authApiKey: true,
+      per: WritePermissionVal
+    }),
+    ...(parentId
+      ? [
+          authDataset({
+            req,
+            datasetId: parentId,
+            authToken: true,
+            authApiKey: true,
+            per: WritePermissionVal
+          })
+        ]
+      : [])
+  ]);
 
-    // check limit
-    const authCount = await MongoDataset.countDocuments({
-      teamId,
-      type: DatasetTypeEnum.dataset
-    });
-    if (authCount >= 50) {
-      throw new Error('每个团队上限 50 个知识库');
-    }
-
-    const { _id } = await MongoDataset.create({
-      name,
-      teamId,
-      tmbId,
-      vectorModel,
-      agentModel,
-      avatar,
-      parentId: parentId || null,
-      type
-    });
-
-    if (type === DatasetTypeEnum.dataset) {
-      await createDefaultCollection({
-        datasetId: _id,
-        teamId,
-        tmbId
-      });
-    }
-
-    jsonRes(res, { data: _id });
-  } catch (err) {
-    jsonRes(res, {
-      code: 500,
-      error: err
-    });
+  // check model valid
+  const vectorModelStore = getVectorModel(vectorModel);
+  const agentModelStore = getLLMModel(agentModel);
+  if (!vectorModelStore || !agentModelStore) {
+    return Promise.reject(DatasetErrEnum.invalidVectorModelOrQAModel);
   }
+
+  // check limit
+  await checkTeamDatasetLimit(teamId);
+
+  const datasetId = await mongoSessionRun(async (session) => {
+    const [{ _id }] = await MongoDataset.create(
+      [
+        {
+          ...parseParentIdInMongo(parentId),
+          name,
+          intro,
+          teamId,
+          tmbId,
+          vectorModel,
+          agentModel,
+          avatar,
+          type,
+          apiServer,
+          feishuServer,
+          yuqueServer
+        }
+      ],
+      { session }
+    );
+    await refreshSourceAvatar(avatar, undefined, session);
+
+    return _id;
+  });
+
+  pushTrack.createDataset({
+    type,
+    teamId,
+    tmbId,
+    uid: userId
+  });
+
+  return datasetId;
 }
+export default NextAPI(handler);

@@ -1,23 +1,41 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiResponse } from 'next';
 import { jsonRes } from '@fastgpt/service/common/response';
 import { connectToDatabase } from '@/service/mongo';
-import type { CreateQuestionGuideParams } from '@/global/core/ai/api.d';
-import { pushQuestionGuideBill } from '@/service/support/wallet/bill/push';
+import { pushQuestionGuideUsage } from '@/service/support/wallet/usage/push';
 import { createQuestionGuide } from '@fastgpt/service/core/ai/functions/createQuestionGuide';
-import { authCertOrShareId } from '@fastgpt/service/support/permission/auth/common';
+import { ApiRequestProps } from '@fastgpt/service/type/next';
+import { NextAPI } from '@/service/middleware/entry';
+import { OutLinkChatAuthProps } from '@fastgpt/global/support/permission/chat';
+import { ChatCompletionMessageParam } from '@fastgpt/global/core/ai/type';
+import { AuthModeType } from '@fastgpt/service/support/permission/type';
+import { AuthUserTypeEnum } from '@fastgpt/global/support/permission/constant';
+import { authOutLinkValid } from '@fastgpt/service/support/permission/publish/authLink';
+import { authOutLinkInit } from '@/service/support/permission/auth/outLink';
+import { authTeamSpaceToken } from '@/service/support/permission/auth/team';
+import { MongoTeamMember } from '@fastgpt/service/support/user/team/teamMemberSchema';
+import { TeamMemberRoleEnum } from '@fastgpt/global/support/user/team/constant';
+import { ChatErrEnum } from '@fastgpt/global/common/error/code/chat';
+import { authCert } from '@fastgpt/service/support/permission/auth/common';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
+async function handler(
+  req: ApiRequestProps<
+    OutLinkChatAuthProps & {
+      messages: ChatCompletionMessageParam[];
+    }
+  >,
+  res: NextApiResponse<any>
+) {
   try {
     await connectToDatabase();
-    const { messages, shareId } = req.body as CreateQuestionGuideParams;
+    const { messages } = req.body;
 
-    const { tmbId, teamId } = await authCertOrShareId({
+    const { tmbId, teamId } = await authChatCert({
       req,
       authToken: true,
-      shareId
+      authApiKey: true
     });
 
-    const qgModel = global.qgModels[0];
+    const qgModel = global.llmModels[0];
 
     const { result, inputTokens, outputTokens } = await createQuestionGuide({
       messages,
@@ -28,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       data: result
     });
 
-    pushQuestionGuideBill({
+    pushQuestionGuideUsage({
       inputTokens,
       outputTokens,
       teamId,
@@ -40,4 +58,65 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       error: err
     });
   }
+}
+
+export default NextAPI(handler);
+
+/* 
+  Abandoned
+  Different chat source
+  1. token (header)
+  2. apikey (header)
+  3. share page (body: shareId outLinkUid)
+  4. team chat page (body: teamId teamToken)
+*/
+async function authChatCert(props: AuthModeType): Promise<{
+  teamId: string;
+  tmbId: string;
+  authType: AuthUserTypeEnum;
+  apikey: string;
+  isOwner: boolean;
+  canWrite: boolean;
+  outLinkUid?: string;
+}> {
+  const { teamId, teamToken, shareId, outLinkUid } = props.req.body as OutLinkChatAuthProps;
+
+  if (shareId && outLinkUid) {
+    const { outLinkConfig } = await authOutLinkValid({ shareId });
+    const { uid } = await authOutLinkInit({
+      outLinkUid,
+      tokenUrl: outLinkConfig.limit?.hookUrl
+    });
+
+    return {
+      teamId: String(outLinkConfig.teamId),
+      tmbId: String(outLinkConfig.tmbId),
+      authType: AuthUserTypeEnum.outLink,
+      apikey: '',
+      isOwner: false,
+      canWrite: false,
+      outLinkUid: uid
+    };
+  }
+  if (teamId && teamToken) {
+    const { uid } = await authTeamSpaceToken({ teamId, teamToken });
+    const tmb = await MongoTeamMember.findOne(
+      { teamId, role: TeamMemberRoleEnum.owner },
+      'tmbId'
+    ).lean();
+
+    if (!tmb) return Promise.reject(ChatErrEnum.unAuthChat);
+
+    return {
+      teamId,
+      tmbId: String(tmb._id),
+      authType: AuthUserTypeEnum.teamDomain,
+      apikey: '',
+      isOwner: false,
+      canWrite: false,
+      outLinkUid: uid
+    };
+  }
+
+  return authCert(props);
 }

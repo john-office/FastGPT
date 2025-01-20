@@ -1,8 +1,7 @@
 import { UserType } from '@fastgpt/global/support/user/type';
 import { MongoUser } from './schema';
-import { getTeamInfoByTmbId, getUserDefaultTeam } from './team/controller';
+import { getTmbInfoByTmbId, getUserDefaultTeam } from './team/controller';
 import { ERROR_ENUM } from '@fastgpt/global/common/error/errorCode';
-import { UserErrEnum } from '@fastgpt/global/common/error/code/user';
 
 export async function authUserExist({ userId, username }: { userId?: string; username?: string }) {
   if (userId) {
@@ -21,16 +20,19 @@ export async function getUserDetail({
   tmbId?: string;
   userId?: string;
 }): Promise<UserType> {
-  const team = await (async () => {
+  const tmb = await (async () => {
     if (tmbId) {
-      return getTeamInfoByTmbId({ tmbId });
+      try {
+        const result = await getTmbInfoByTmbId({ tmbId });
+        return result;
+      } catch (error) {}
     }
     if (userId) {
       return getUserDefaultTeam({ userId });
     }
     return Promise.reject(ERROR_ENUM.unAuthorization);
   })();
-  const user = await MongoUser.findById(team.userId);
+  const user = await MongoUser.findById(tmb.userId);
 
   if (!user) {
     return Promise.reject(ERROR_ENUM.unAuthorization);
@@ -39,30 +41,11 @@ export async function getUserDetail({
   return {
     _id: user._id,
     username: user.username,
-    avatar: user.avatar,
-    balance: user.balance,
+    avatar: tmb.avatar,
     timezone: user.timezone,
     promotionRate: user.promotionRate,
-    openaiAccount: user.openaiAccount,
-    team
+    team: tmb,
+    notificationAccount: tmb.notificationAccount,
+    permission: tmb.permission
   };
-}
-
-export async function getUserAndAuthBalance({
-  tmbId,
-  minBalance
-}: {
-  tmbId: string;
-  minBalance?: number;
-}) {
-  const user = await getUserDetail({ tmbId });
-
-  if (!user) {
-    return Promise.reject(UserErrEnum.unAuthUser);
-  }
-  if (minBalance !== undefined && user.team.balance < minBalance) {
-    return Promise.reject(UserErrEnum.balanceNotEnough);
-  }
-
-  return user;
 }

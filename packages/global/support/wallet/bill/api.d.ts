@@ -1,26 +1,27 @@
-import { BillSourceEnum } from './constants';
-import { BillListItemCountType, BillListItemType } from './type';
+import { StandardSubLevelEnum, SubModeEnum } from '../sub/constants';
+import { BillTypeEnum } from './constants';
 
-export type CreateTrainingBillProps = {
-  name: string;
-  vectorModel?: string;
-  agentModel?: string;
+export type CreateStandPlanBill = {
+  type: BillTypeEnum.standSubPlan;
+  level: `${StandardSubLevelEnum}`;
+  subMode: `${SubModeEnum}`;
 };
-
-export type ConcatBillProps = BillListItemCountType & {
-  teamId: string;
-  tmbId: string;
-  billId?: string;
-  total: number;
-  listIndex?: number;
+type CreateExtractPointsBill = {
+  type: BillTypeEnum.extraPoints;
+  extraPoints: number;
 };
+type CreateExtractDatasetBill = {
+  type: BillTypeEnum.extraDatasetSub;
+  extraDatasetSize: number;
+  month: number;
+};
+export type CreateBillProps =
+  | CreateStandPlanBill
+  | CreateExtractPointsBill
+  | CreateExtractDatasetBill;
 
-export type CreateBillProps = {
-  teamId: string;
-  tmbId: string;
-  appName: string;
-  appId?: string;
-  total: number;
-  source: `${BillSourceEnum}`;
-  list: BillListItemType[];
+export type CreateBillResponse = {
+  billId: string;
+  codeUrl: string;
+  readPrice: number;
 };

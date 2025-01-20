@@ -2,40 +2,46 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { jsonRes } from '@fastgpt/service/common/response';
 import { connectToDatabase } from '@/service/mongo';
 import { authCert } from '@fastgpt/service/support/permission/auth/common';
-import type {
-  AdminUpdateFeedbackParams,
-  CloseCustomFeedbackParams
-} from '@/global/core/chat/api.d';
+import type { CloseCustomFeedbackParams } from '@/global/core/chat/api.d';
 import { MongoChatItem } from '@fastgpt/service/core/chat/chatItemSchema';
-import { autChatCrud } from '@/service/support/permission/auth/chat';
+import { authChatCrud } from '@/service/support/permission/auth/chat';
+import { mongoSessionRun } from '@fastgpt/service/common/mongo/sessionRun';
 
-/* 初始化我的聊天框，需要身份验证 */
+/* remove custom feedback */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     await connectToDatabase();
-    const { appId, chatId, chatItemId, index } = req.body as CloseCustomFeedbackParams;
+    const { appId, chatId, dataId, index } = req.body as CloseCustomFeedbackParams;
 
-    if (!chatItemId || !appId || !chatId || !chatItemId) {
+    if (!dataId || !appId || !chatId) {
       throw new Error('missing parameter');
     }
 
-    await autChatCrud({
+    await authChatCrud({
       req,
       authToken: true,
+      authApiKey: true,
       appId,
-      chatId,
-      per: 'r'
+      chatId
     });
     await authCert({ req, authToken: true });
 
-    await MongoChatItem.findOneAndUpdate(
-      { dataId: chatItemId },
-      { $unset: { [`customFeedbacks.${index}`]: 1 } }
-    );
-    await MongoChatItem.findOneAndUpdate(
-      { dataId: chatItemId },
-      { $pull: { customFeedbacks: null } }
-    );
+    await mongoSessionRun(async (session) => {
+      await MongoChatItem.findOneAndUpdate(
+        { appId, chatId, dataId },
+        { $unset: { [`customFeedbacks.${index}`]: 1 } },
+        {
+          session
+        }
+      );
+      await MongoChatItem.findOneAndUpdate(
+        { appId, chatId, dataId },
+        { $pull: { customFeedbacks: null } },
+        {
+          session
+        }
+      );
+    });
 
     jsonRes(res);
   } catch (err) {

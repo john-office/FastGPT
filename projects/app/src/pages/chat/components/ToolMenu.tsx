@@ -1,72 +1,80 @@
-import React, { useMemo } from 'react';
-import { useChatBox } from '@/components/ChatBox';
+import React from 'react';
+import { useChatBox } from '@/components/core/chat/ChatContainer/ChatBox/hooks/useChatBox';
 import type { ChatItemType } from '@fastgpt/global/core/chat/type.d';
-import { Menu, MenuButton, MenuList, MenuItem, Box } from '@chakra-ui/react';
+import { Box, IconButton } from '@chakra-ui/react';
 import { useTranslation } from 'next-i18next';
 import MyIcon from '@fastgpt/web/components/common/Icon';
+import MyMenu from '@fastgpt/web/components/common/MyMenu';
+import { useContextSelector } from 'use-context-selector';
+import { ChatContext } from '@/web/core/chat/context/chatContext';
+import { ChatItemContext } from '@/web/core/chat/context/chatItemContext';
 import { useRouter } from 'next/router';
 
 const ToolMenu = ({ history }: { history: ChatItemType[] }) => {
+  const router = useRouter();
   const { t } = useTranslation();
   const { onExportChat } = useChatBox();
-  const router = useRouter();
 
-  const menuList = useMemo(
-    () => [
-      {
-        icon: 'core/chat/chatLight',
-        label: t('core.chat.New Chat'),
-        onClick: () => {
-          router.replace({
-            query: {
-              ...router.query,
-              chatId: ''
-            }
-          });
-        }
-      },
-      {
-        icon: 'core/app/appApiLight',
-        label: `HTML ${t('Export')}`,
-        onClick: () => onExportChat({ type: 'html', history })
-      },
-      {
-        icon: 'file/markdown',
-        label: `Markdown ${t('Export')}`,
-        onClick: () => onExportChat({ type: 'md', history })
-      },
-      {
-        icon: 'file/pdf',
-        label: `PDF ${t('Export')}`,
-        onClick: () => onExportChat({ type: 'pdf', history })
+  const onChangeChatId = useContextSelector(ChatContext, (v) => v.onChangeChatId);
+  const chatData = useContextSelector(ChatItemContext, (v) => v.chatBoxData);
+  const showRouteToAppDetail = useContextSelector(ChatItemContext, (v) => v.showRouteToAppDetail);
+
+  return (
+    <MyMenu
+      Button={
+        <IconButton
+          icon={<MyIcon name={'more'} w={'14px'} p={2} />}
+          aria-label={''}
+          size={'sm'}
+          variant={'whitePrimary'}
+        />
       }
-    ],
-    [history, onExportChat, router]
-  );
-
-  return history.length > 0 ? (
-    <Menu autoSelect={false} isLazy>
-      <MenuButton
-        _hover={{ bg: 'myWhite.600  ' }}
-        cursor={'pointer'}
-        borderRadius={'md'}
-        onClick={(e) => {
-          e.stopPropagation();
-        }}
-      >
-        <MyIcon name={'more'} w={'14px'} p={2} />
-      </MenuButton>
-      <MenuList color={'myGray.700'} minW={`120px !important`} zIndex={10}>
-        {menuList.map((item) => (
-          <MenuItem key={item.label} onClick={item.onClick} py={[2, 3]}>
-            <MyIcon name={item.icon as any} w={['14px', '16px']} />
-            <Box ml={[1, 2]}>{item.label}</Box>
-          </MenuItem>
-        ))}
-      </MenuList>
-    </Menu>
-  ) : (
-    <Box w={'28px'} h={'28px'} />
+      menuList={[
+        {
+          children: [
+            {
+              icon: 'core/chat/chatLight',
+              label: t('common:core.chat.New Chat'),
+              onClick: () => {
+                onChangeChatId();
+              }
+            }
+          ]
+        },
+        {
+          children: [
+            // {
+            //   icon: 'core/app/appApiLight',
+            //   label: `HTML ${t('common:Export')}`,
+            //   onClick: () => onExportChat({ type: 'html', history })
+            // },
+            {
+              icon: 'file/markdown',
+              label: `Markdown ${t('common:Export')}`,
+              onClick: () => onExportChat({ type: 'md', history })
+            }
+            // {
+            //   icon: 'core/chat/export/pdf',
+            //   label: `PDF ${t('common:Export')}`,
+            //   onClick: () => onExportChat({ type: 'pdf', history })
+            // }
+          ]
+        },
+        ...(showRouteToAppDetail
+          ? [
+              {
+                children: [
+                  {
+                    icon: 'core/app/aiLight',
+                    label: t('app:app_detail'),
+                    onClick: () => router.push(`/app/detail?appId=${chatData.appId}`)
+                  }
+                ]
+              }
+            ]
+          : [])
+      ]}
+    />
   );
 };
 
